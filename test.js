@@ -252,7 +252,7 @@ function drawCanvas() {
 				let visible = ref['visible'];
 				if (intersect != false) {
 					//console.log(thisx + ' ' + thisy + ' ' + intersect['x'] + ' ' + intersect['y']);
-					// snap to intersection point
+					// snap to line intersection point
 					// snap the previous point if moving from visible to invisible
 					// snap the new point if its becoming visible
 					if (visible) {

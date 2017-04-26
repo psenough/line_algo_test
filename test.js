@@ -4,7 +4,7 @@ rand = function(n){
 	return 0|(Math.random()*n);
 };
 
-D.title = 'banana line';
+D.title = 'webgl lines';
 
 PI = Math.PI;
 si = Math.sin;
@@ -21,10 +21,28 @@ b.innerHTML = '';
 var c = D.createElement('canvas');
 b.appendChild(c);
 c.style.background = "transparent";
-var ctx = c.getContext('2d');
 
-var w = ctx.width = c.width = window.innerWidth;
-var h = ctx.height = c.height = window.innerHeight;
+var gl = null;
+gl = c.getContext('webgl', { alpha: false }) || c.getContext('experimental-webgl', { alpha: false });
+//if (!gl) {
+    //alert('Unable to initialize WebGL. Your browser may not support it.');
+//	return;
+//}
+// Set clear color to black, fully opaque
+gl.clearColor(0.0, 1.0, 0.0, 0.0);
+// Enable depth testing
+gl.enable(gl.DEPTH_TEST);
+// Near things obscure far things
+gl.depthFunc(gl.LEQUAL);
+// Clear the color as well as the depth buffer.
+gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+//var ctx = c.getContext('2d');
+
+var w = c.width = window.innerWidth;
+var h = c.height = window.innerHeight;
+
+gl.viewport(0, 0, c.width, c.height);
 
 //
 // request animation frame, from random place on the internet
@@ -63,8 +81,8 @@ b.onload = function() {
 // init general variables
 //
 
-var r="rgba(";
-var c1 = r+"0,0,0,1)", c2 = r+"0,0,0,.1)", c3 = r+"254,147,88,1)", c4 = r+"94,88,254,1)", c5 = r+"254,229,88,1)";		
+//var r="rgba(";
+//var c1 = r+"0,0,0,1)", c2 = r+"0,0,0,.1)", c3 = r+"254,147,88,1)", c4 = r+"94,88,254,1)", c5 = r+"254,229,88,1)";		
 
 //
 // init dom side text
@@ -186,26 +204,33 @@ function drawCanvas() {
 	var d = new Date();
 	var n = d.getTime();
 
+	let shaderProgram = initShader();
+	
 	function drawBackground(timer) {
 		// background
-		ctx.globalCompositeOperation="source-over";
+		/*ctx.globalCompositeOperation="source-over";
 		var lingrad = ctx.createLinearGradient(0,0,0,h);
 		lingrad.addColorStop(0, '#000');
 		lingrad.addColorStop(1, '#115');
 		ctx.fillStyle = lingrad;
-		ctx.fillRect(0,0,w,h);
+		ctx.fillRect(0,0,w,h);*/
+		
+		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	}
 				
 	function drawLines(timer) {
 		// stroke
-		ctx.globalCompositeOperation="source-over";
+		/*ctx.globalCompositeOperation="source-over";
 		ctx.lineCap="round";
 		ctx.lineWidth=2;
 		var gradient=ctx.createLinearGradient(0,0,w,0);
 		gradient.addColorStop("0","magenta");
 		gradient.addColorStop("0.5","blue");
 		gradient.addColorStop("1.0","red");
-		ctx.strokeStyle=gradient;		
+		ctx.strokeStyle=gradient;*/
+		
+		let verts = [];
+		//let alphas = [];
 		
 		var activelinecount = 0;
 		
@@ -299,13 +324,25 @@ function drawCanvas() {
 
 			// plot whole line
 			let prev = false;
-			for (let j=0; j<lines[i].length; j++) {
+			for (let j=0; j<lines[i].length-1; j++) {
 
 				let thisx = lines[i][j]['x'];
 				let thisy = lines[i][j]['y'];
+							
+				if ((lines[i][j]['visible']) && (lines[i][j+1]['visible'])) {
+					verts[verts.length] = lines[i][j]['x']/w-0.5;
+					verts[verts.length] = lines[i][j]['y']/h-0.5;
+					verts[verts.length] = 0.0;
+					verts[verts.length] = 0.5;
+					
+					verts[verts.length] = lines[i][j+1]['x']/w-0.5;
+					verts[verts.length] = lines[i][j+1]['y']/h-0.5;
+					verts[verts.length] = 0.0;
+					verts[verts.length] = 0.5;
+				}
 				
 				// was invisible, now it's visible, lets start drawing the line
-				if ((prev == false) && (lines[i][j]['visible'])) {
+				/*if ((prev == false) && (lines[i][j]['visible'])) {
 					// flash lines white when the timer equals the index
 					//if ((timer % lines[i].length) == i) {
 					//	ctx.strokeStyle="rgba(255,255,255,1.0)";
@@ -313,25 +350,51 @@ function drawCanvas() {
 					//	ctx.strokeStyle=gradient;
 					//}
 					// start line
-					ctx.beginPath();
-					ctx.moveTo(thisx, thisy);
+					//ctx.beginPath();
+					//ctx.moveTo(thisx, thisy);
+					//verts = [];
+					verts[verts.length] = thisx/w-0.5;
+					verts[verts.length] = thisy/h-0.5;
+					verts[verts.length] = 0.0;
+					verts[verts.length] = 0.5;
+					alphas[alphas.length] = 1.0;
+					
 					prev = true;
 				// was already visible and still is, lets keep drawing the line
 				} else if ((prev == true) && (lines[i][j]['visible'])) {
-					ctx.lineTo(thisx, thisy);
+					//ctx.lineTo(thisx, thisy);
+					verts[verts.length] = thisx/w-0.5;
+					verts[verts.length] = thisy/h-0.5;
+					verts[verts.length] = 0.0;
+					verts[verts.length] = 0.5;
+					alphas[alphas.length] = 1.0;
+					
 				// was already visible and now it's not, lets stop drawing at this segment of the line
 				} else if ((prev == true) && (!lines[i][j]['visible'])) {
 					//ctx.closePath();
-					ctx.stroke();
+					//ctx.stroke();
+					verts[verts.length] = (thisx/w-0.5)*2;
+					verts[verts.length] = (thisy/h-0.5)*2;
+					verts[verts.length] = 0.0;
+					verts[verts.length] = 0.5;
+					alphas[alphas.length] = 0.0;
 					prev = false;
-				}
+				}*/
+				
+				//drawVertsOnly(shaderProgram, verts);
 			}
 			// make sure it's closed when it's ended
 			if (prev == true) {
 				//ctx.closePath();
-				ctx.stroke();
+				//ctx.stroke();
+				
 			}
 		}
+		
+		drawVertsOnly(shaderProgram, verts);
+		//console.log(verts);
+		//console.log(verts.length/3);
+		
 	}
 	
 	function drawThis() {
@@ -375,4 +438,79 @@ function checkKeycode(e) {
 			spliceline(j);
 		}
 	}
+}
+
+let sVerts;
+//let sAlpha;
+
+function initShader() {
+
+	var vertCode =
+		'attribute vec4 verts;' +
+		//'attribute highp float alpha;' +
+		//'varying highp float f_alpha;' +
+		'void main(void) {' +
+		   'gl_Position = vec4(verts[0], verts[1], verts[2], verts[3]);' +
+		//   'f_alpha = alpha;' + 
+		'}';
+
+	var vertShader = gl.createShader(gl.VERTEX_SHADER);
+	gl.shaderSource(vertShader, vertCode);
+	gl.compileShader(vertShader);
+	if (!gl.getShaderParameter(vertShader, gl.COMPILE_STATUS)) {
+		console.log('ERROR compiling vert shader!', gl.getShaderInfoLog(vertShader));
+		return;
+	}
+
+	var fragCode =
+		//'varying highp float f_alpha;' +
+		'void main(void) {' +
+		   'gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);' +
+		'}';
+
+	var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
+	gl.shaderSource(fragShader, fragCode);
+	gl.compileShader(fragShader);
+	if (!gl.getShaderParameter(fragShader, gl.COMPILE_STATUS)) {
+		console.log('ERROR compiling frag shader!', gl.getShaderInfoLog(fragShader));
+		return;
+	}
+
+	var shaderProgram = gl.createProgram();
+	gl.attachShader(shaderProgram, vertShader);
+	gl.attachShader(shaderProgram, fragShader);
+	gl.linkProgram(shaderProgram);
+
+	gl.useProgram(shaderProgram);
+	
+	sVerts = gl.getAttribLocation(shaderProgram, "verts");
+	gl.enableVertexAttribArray(sVerts);
+	
+	//sAlpha = gl.getAttribLocation(shaderProgram, "alpha");
+	//gl.enableVertexAttribArray(sAlpha);
+	
+	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+	gl.enable(gl.BLEND);
+
+	return shaderProgram;	 
+}
+
+function drawVertsOnly(shaderProgram, vertices, alphas) {
+	
+	var vert_div = 4;
+	
+	gl.useProgram(shaderProgram);
+	
+	var vb_verts = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, vb_verts);
+  	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+	gl.vertexAttribPointer(sVerts, vert_div, gl.FLOAT, false, 0, 0);
+	 	 
+	/*var vb_alpha = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, vb_alpha);
+  	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(alphas), gl.STATIC_DRAW);
+	gl.vertexAttribPointer(sAlpha, 1, gl.FLOAT, false, 0, 0);*/
+
+	gl.drawArrays(gl.LINES, 0, vertices.length/vert_div);
+	
 }

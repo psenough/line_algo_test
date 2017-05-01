@@ -24,20 +24,14 @@ c.style.background = "transparent";
 
 var gl = null;
 gl = c.getContext('webgl', { alpha: false }) || c.getContext('experimental-webgl', { alpha: false });
-//if (!gl) {
-    //alert('Unable to initialize WebGL. Your browser may not support it.');
-//	return;
-//}
-// Set clear color to black, fully opaque
-gl.clearColor(0.0, 1.0, 0.0, 0.0);
-// Enable depth testing
-gl.enable(gl.DEPTH_TEST);
-// Near things obscure far things
-gl.depthFunc(gl.LEQUAL);
-// Clear the color as well as the depth buffer.
-gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-//var ctx = c.getContext('2d');
+gl.clearColor(0.0, 1.0, 0.0, 0.0);
+gl.enable(gl.DEPTH_TEST);
+gl.depthFunc(gl.LEQUAL);
+gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+gl.enable(gl.BLEND);
+
 
 var w = c.width = window.innerWidth;
 var h = c.height = window.innerHeight;
@@ -73,38 +67,27 @@ gl.viewport(0, 0, c.width, c.height);
         };
 }());
 
+var texture0;
+
+
 b.onload = function() {
+	texture0 = loadImageAndCreateTextureInfo('gfx/star.jpg');
 	drawCanvas();
+	//shaderProgramQuad = initShaderProgramQuad();
+	//drawQuadOnScreen();
 }
-
-//
-// init general variables
-//
-
-//var r="rgba(";
-//var c1 = r+"0,0,0,1)", c2 = r+"0,0,0,.1)", c3 = r+"254,147,88,1)", c4 = r+"94,88,254,1)", c5 = r+"254,229,88,1)";		
-
-//
-// init dom side text
-//
 
 var elem = D.createElement("div");
 var S = elem.style;
 S.background = "#fff";
 S.position = "absolute";
-//elem.style.top = "45%";
-//elem.style.left = "0";
-//elem.style.width = "100%";
 S.height = "100px";
 S.lineHeight = elem.style.height;
-//elem.style.marginTop = "-20px";
 S.letterSpacing = "-3px";
 S.textAlign = "center";
 S.fontSize = "60px";
 S.border = "solid #49b249";//"solid #fe9358";
 S.borderWidth = "5px 0";
-//elem.style.textTransform = "lowercase";
-//elem.style.color = "#333";
 S.fontFamily = "Helvetica";
 b.appendChild(elem);
 
@@ -200,37 +183,24 @@ for (j=0; j<nlines; j++) {
 }
 
 function drawCanvas() {
+	
+	console.log('draw canvas');
 		
 	var d = new Date();
 	var n = d.getTime();
 
-	let shaderProgram = initShader();
+	myBuffer = createFramebuffer(gl, gl.canvas.width, gl.canvas.height);
+	shaderProgramLines = initShaderProgramLines();
+	//initQuadBuffer();
+	shaderProgramQuad = initShaderProgramQuad();
 	
-	function drawBackground(timer) {
-		// background
-		/*ctx.globalCompositeOperation="source-over";
-		var lingrad = ctx.createLinearGradient(0,0,0,h);
-		lingrad.addColorStop(0, '#000');
-		lingrad.addColorStop(1, '#115');
-		ctx.fillStyle = lingrad;
-		ctx.fillRect(0,0,w,h);*/
-		
+	function drawBackground(timer) {		
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	}
 				
 	function drawLines(timer) {
-		// stroke
-		/*ctx.globalCompositeOperation="source-over";
-		ctx.lineCap="round";
-		ctx.lineWidth=2;
-		var gradient=ctx.createLinearGradient(0,0,w,0);
-		gradient.addColorStop("0","magenta");
-		gradient.addColorStop("0.5","blue");
-		gradient.addColorStop("1.0","red");
-		ctx.strokeStyle=gradient;*/
 		
 		let verts = [];
-		//let alphas = [];
 		
 		var activelinecount = 0;
 		
@@ -305,21 +275,7 @@ function drawCanvas() {
 					'step': ref['step'],
 					'visible': visible };
 					//'visible': (Math.random()<0.10)?(ref['visible']):(!ref['visible']) };
-					
-				// spawn new lines within a certain probability
-				/*if ((ref['visible']) && (Math.random()<0.04)) {
-					var thissize = lines.length;
-					if (thissize < maxlines) {
-						lines[thissize] = [];
-						lines[thissize][0] ={
-						'x': thisx,
-						'y': thisy,
-						'direction': ref['direction']+ref['curve']*2,
-						'curve': -lines[i][0]['curve'] ,
-						'step': ref['step'],
-						'visible': true };
-					}
-				}*/
+				
 			}
 
 			// plot whole line
@@ -341,60 +297,14 @@ function drawCanvas() {
 					verts[verts.length] = 0.5;
 				}
 				
-				// was invisible, now it's visible, lets start drawing the line
-				/*if ((prev == false) && (lines[i][j]['visible'])) {
-					// flash lines white when the timer equals the index
-					//if ((timer % lines[i].length) == i) {
-					//	ctx.strokeStyle="rgba(255,255,255,1.0)";
-					//} else {
-					//	ctx.strokeStyle=gradient;
-					//}
-					// start line
-					//ctx.beginPath();
-					//ctx.moveTo(thisx, thisy);
-					//verts = [];
-					verts[verts.length] = thisx/w-0.5;
-					verts[verts.length] = thisy/h-0.5;
-					verts[verts.length] = 0.0;
-					verts[verts.length] = 0.5;
-					alphas[alphas.length] = 1.0;
-					
-					prev = true;
-				// was already visible and still is, lets keep drawing the line
-				} else if ((prev == true) && (lines[i][j]['visible'])) {
-					//ctx.lineTo(thisx, thisy);
-					verts[verts.length] = thisx/w-0.5;
-					verts[verts.length] = thisy/h-0.5;
-					verts[verts.length] = 0.0;
-					verts[verts.length] = 0.5;
-					alphas[alphas.length] = 1.0;
-					
-				// was already visible and now it's not, lets stop drawing at this segment of the line
-				} else if ((prev == true) && (!lines[i][j]['visible'])) {
-					//ctx.closePath();
-					//ctx.stroke();
-					verts[verts.length] = (thisx/w-0.5)*2;
-					verts[verts.length] = (thisy/h-0.5)*2;
-					verts[verts.length] = 0.0;
-					verts[verts.length] = 0.5;
-					alphas[alphas.length] = 0.0;
-					prev = false;
-				}*/
-				
-				//drawVertsOnly(shaderProgram, verts);
 			}
-			// make sure it's closed when it's ended
-			if (prev == true) {
-				//ctx.closePath();
-				//ctx.stroke();
-				
-			}
+			
 		}
 		
-		drawVertsOnly(shaderProgram, verts);
-		//console.log(verts);
-		//console.log(verts.length/3);
-		
+		//drawLinesOnScreen(verts);
+		drawLinesOnQuad(verts);
+		drawQuadOnScreen(myBuffer.texture);
+		//drawQuadOnScreen(texture0.texture);
 	}
 	
 	function drawThis() {
@@ -410,6 +320,8 @@ function drawCanvas() {
 	
 	(loop = function() {
 		requestAnimationFrame(loop);
+		//drawQuadOnScreen(texture0.texture);
+		
 		drawThis();
 	})();
 
@@ -441,9 +353,10 @@ function checkKeycode(e) {
 }
 
 let sVerts;
-//let sAlpha;
+var shaderProgramLines;
+var shaderProgramQuad;
 
-function initShader() {
+function initShaderProgramLines() {
 
 	var vertCode =
 		'attribute vec4 verts;' +
@@ -480,37 +393,285 @@ function initShader() {
 	gl.attachShader(shaderProgram, vertShader);
 	gl.attachShader(shaderProgram, fragShader);
 	gl.linkProgram(shaderProgram);
-
-	gl.useProgram(shaderProgram);
 	
 	sVerts = gl.getAttribLocation(shaderProgram, "verts");
-	gl.enableVertexAttribArray(sVerts);
 	
-	//sAlpha = gl.getAttribLocation(shaderProgram, "alpha");
-	//gl.enableVertexAttribArray(sAlpha);
-	
-	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-	gl.enable(gl.BLEND);
-
 	return shaderProgram;	 
 }
 
-function drawVertsOnly(shaderProgram, vertices, alphas) {
+function drawLinesOnScreen(vertices) {
 	
 	var vert_div = 4;
 	
-	gl.useProgram(shaderProgram);
+	gl.useProgram(shaderProgramLines);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	
+	gl.enableVertexAttribArray(sVerts);
 	
 	var vb_verts = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, vb_verts);
   	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
 	gl.vertexAttribPointer(sVerts, vert_div, gl.FLOAT, false, 0, 0);
-	 	 
-	/*var vb_alpha = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, vb_alpha);
-  	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(alphas), gl.STATIC_DRAW);
-	gl.vertexAttribPointer(sAlpha, 1, gl.FLOAT, false, 0, 0);*/
-
+	
 	gl.drawArrays(gl.LINES, 0, vertices.length/vert_div);
 	
 }
+
+
+function drawLinesOnQuad(vertices) {
+	
+	var vert_div = 4;
+	
+	gl.useProgram(shaderProgramLines);
+	//gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	//gl.activeTexture(gl.TEXTURE0);
+	//gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+	
+	gl.enableVertexAttribArray(sVerts);
+	
+	var vb_verts = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, vb_verts);
+  	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+	gl.vertexAttribPointer(sVerts, vert_div, gl.FLOAT, false, 0, 0);
+
+	//gl.bindFramebuffer(gl.FRAMEBUFFER, myBuffer.buffer);
+    //gl.activeTexture(gl.TEXTURE0);
+	//gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, myBuffer.buffer);
+	//gl.activeTexture(gl.TEXTURE0);
+	//gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+	
+	gl.drawArrays(gl.LINES, 0, vertices.length/vert_div);
+	
+	//gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	
+	/*gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+    gl.generateMipmap(gl.TEXTURE_2D);*/
+    gl.bindTexture(gl.TEXTURE_2D, null);
+		
+}
+/*
+function initQuadBuffer() {
+	quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(quadVerts), gl.STATIC_DRAW);
+	//myBuffer = createFramebuffer(gl, 1024*1024);
+}*/
+
+//var quad;
+var quadVerts = [-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1];
+var myBuffer;// = createFramebuffer(gl, 1024*1024);
+
+var positionLocation;
+var texcoordLocation;
+var matrixLocation;
+var positionBuffer;
+var texcoordBuffer;
+var resolutionLocation;
+var textureLocation;
+
+function initShaderProgramQuad() {
+
+	var vertCode =
+		'attribute vec2 a_position;' +
+		'attribute vec2 a_texCoord;' +
+		'uniform vec2 u_resolution;' +
+		'varying vec2 v_texCoord;' +
+		'void main() {' +
+		'vec2 zeroToOne = a_position;' + // / u_resolution;' +
+		'vec2 zeroToTwo = zeroToOne * 2.0;' +
+		'vec2 clipSpace = zeroToTwo - 1.0;' +
+		'gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);' +
+		//'gl_Position = vec4(a_position[0], a_position[1], 0, 1);' +
+		'v_texCoord = a_texCoord;' +
+		'}';
+
+	var vertShader = gl.createShader(gl.VERTEX_SHADER);
+	gl.shaderSource(vertShader, vertCode);
+	gl.compileShader(vertShader);
+	if (!gl.getShaderParameter(vertShader, gl.COMPILE_STATUS)) {
+		console.log('ERROR compiling vert shader!', gl.getShaderInfoLog(vertShader));
+		return;
+	}
+
+	var fragCode =
+		'precision mediump float;' +
+		'uniform sampler2D u_texture;' +
+		'varying vec2 v_texCoord;' +
+		'void main() {' +
+		'vec4 color0 = texture2D(u_texture, v_texCoord);' +
+		'gl_FragColor = color0;' +
+		//'gl_FragColor = vec4(1.0,0.0,0.0,0.5);' + //color0;' +
+		'}';
+
+	var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
+	gl.shaderSource(fragShader, fragCode);
+	gl.compileShader(fragShader);
+	if (!gl.getShaderParameter(fragShader, gl.COMPILE_STATUS)) {
+		console.log('ERROR compiling frag shader!', gl.getShaderInfoLog(fragShader));
+		return;
+	}
+
+	var shaderProgram = gl.createProgram();
+	gl.attachShader(shaderProgram, vertShader);
+	gl.attachShader(shaderProgram, fragShader);
+	gl.linkProgram(shaderProgram);
+
+	/*a_position = gl.getAttribLocation(shaderProgram, "a_position");
+	a_texCoord = gl.getAttribLocation(shaderProgram, "a_texCoord");
+	u_resolution = gl.getUniformLocation(someProgram, "u_resolution");
+	u_image0 = gl.getUniformLocation(someProgram, "u_image0");*/
+	
+	// look up where the vertex data needs to go.
+	positionLocation = gl.getAttribLocation(shaderProgram, "a_position");
+	texcoordLocation = gl.getAttribLocation(shaderProgram, "a_texCoord");
+
+	// lookup uniforms
+	//matrixLocation = gl.getUniformLocation(shaderProgram, "u_matrix");
+	//textureLocation = gl.getUniformLocation(shaderProgram, "u_texture");
+
+	// Create a buffer.
+	positionBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+	// Put a unit quad in the buffer
+	var positions = [
+	0, 0,
+	0, 1,
+	1, 0,
+	1, 0,
+	0, 1,
+	1, 1]
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+	// Create a buffer for texture coords
+	texcoordBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+
+	// Put texcoords in the buffer
+	var texcoords = [
+	0, 0,
+	0, 1,
+	1, 0,
+	1, 0,
+	0, 1,
+	1, 1]
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texcoords), gl.STATIC_DRAW);
+
+	resolutionLocation = gl.getUniformLocation(shaderProgram, "u_resolution");
+	
+	textureLocation = gl.getUniformLocation(shaderProgram, "u_texture");
+
+	return shaderProgram;	 
+}
+
+function drawQuadOnScreen(texture) {
+	
+	//console.log('drawing quads');
+	gl.bindTexture(gl.TEXTURE_2D, texture);
+	
+	var vertices = quadVerts;
+	gl.useProgram(shaderProgramQuad);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	
+	gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+	
+    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+    gl.enableVertexAttribArray(texcoordLocation);
+    gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+	gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);	
+	gl.uniform1i(textureLocation, 0);
+	
+	gl.drawArrays(gl.TRIANGLES, 0, 6);
+	
+	gl.bindBuffer(gl.ARRAY_BUFFER, null);
+	gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+function createFramebuffer(gl, width, height) {
+	
+	var buffer = gl.createFramebuffer();
+	//bind framebuffer to texture
+	gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
+	buffer.width = 512;
+    buffer.height = 512;
+
+	var texture = gl.createTexture();
+	//set properties for the texture
+	gl.bindTexture(gl.TEXTURE_2D, texture);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+	//gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+	//gl.generateMipmap(gl.TEXTURE_2D);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+	
+	var renderbuffer = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+	
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+	gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderbuffer);
+	
+	// clean up back to defaults after binding stuff
+	gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+	return {
+	  texture: texture,
+	  buffer: buffer,
+	  renderbuffer, renderbuffer
+	};
+}
+
+
+// creates a texture info { width: w, height: h, texture: tex }
+// The texture will start with 1x1 pixels and be updated
+// when the image has loaded
+function loadImageAndCreateTextureInfo(url) {
+  var tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+ 
+  // let's assume all images are not a power of 2
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+ 
+  var textureInfo = {
+    width: 1,   // we don't know the size until it loads
+    height: 1,
+    texture: tex,
+  };
+  var img = new Image();
+  console.log('loading');
+  img.addEventListener('load', function() {
+	//console.log('load=?!');
+    textureInfo.width = img.width;
+    textureInfo.height = img.height;
+ 
+    gl.bindTexture(gl.TEXTURE_2D, textureInfo.texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+	
+	//console.log('done loading');
+	//drawCanvas();
+  });
+  img.src = url;
+ 
+  return textureInfo;
+}
+/* 
+var textureInfos = [
+  loadImageAndCreateTextureInfo('gfx/star.jpg'),
+  loadImageAndCreateTextureInfo('gfx/leaves.jpg'),
+  loadImageAndCreateTextureInfo('gfx/keyboard.jpg'),
+];*/
+

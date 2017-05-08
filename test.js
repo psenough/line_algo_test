@@ -25,7 +25,7 @@ c.style.background = "transparent";
 var gl = null;
 gl = c.getContext('webgl', { alpha: false }) || c.getContext('experimental-webgl', { alpha: false });
 
-gl.clearColor(0.0, 1.0, 0.0, 0.0);
+gl.clearColor(1.0, 1.0, 1.0, 1.0);
 gl.enable(gl.DEPTH_TEST);
 gl.depthFunc(gl.LEQUAL);
 gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -205,11 +205,11 @@ function drawCanvas() {
 	
 //	console.log('draw canvas');
 	
-	var canvas = document.createElement('canvas');
+	/*var canvas = document.createElement('canvas');
 	var ctx    = canvas.getContext('2d');
 	
 	canvas.width = ctx.width = w;
-	canvas.height = ctx.height = h;
+	canvas.height = ctx.height = h;*/
 	
 	var d = new Date();
 	var n = d.getTime();
@@ -220,9 +220,14 @@ function drawCanvas() {
 	shaderProgramQuad = initShaderProgramQuad();
 	
 	function drawBackground(timer) {		
-		ctx.globalCompositeOperation="source-over";
+		/*ctx.globalCompositeOperation="source-over";
 		ctx.fillStyle = "rgba(255,255,255,1.0)";
-		ctx.fillRect(0,0,w,h);
+		ctx.fillRect(0,0,w,h);*/
+		
+		gl.bindFramebuffer( gl.FRAMEBUFFER, myBuffer.buffer );
+		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		
+		gl.bindFramebuffer( gl.FRAMEBUFFER, null );
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	}
 				
@@ -233,10 +238,10 @@ function drawCanvas() {
 		var activelinecount = 0;
 		
 		// stroke
-		ctx.globalCompositeOperation="source-over";
+		/*ctx.globalCompositeOperation="source-over";
 		ctx.lineCap="round";
 		ctx.lineWidth=2;
-		ctx.strokeStyle = "rgba(0,0,0,1.0)";
+		ctx.strokeStyle = "rgba(0,0,0,1.0)";*/
 		
 		// draw lines
 		for (let i=0; i<lines.length; i++) 
@@ -415,6 +420,7 @@ function drawCanvas() {
 		var data = new Uint8Array(w * h * 4);
 		gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, data);
 		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+		//console.log(data[0]);
 		
 		// manipulate the data by software
 		/*for(x = 0; (x | 0) < w; x++) {
@@ -425,7 +431,7 @@ function drawCanvas() {
 				data[(i | 0) + 2] = Math.sin(y+timer/1000)*20+20;
 			}
     	}*/
-		doEffect({}, { w: w, h: h, timer: timer }, data);
+		doFloodFill(window, { w: w, h: h, bound: 0 }, data);
 		
 		// create texture with the data
 		/*var tex = gl.createTexture();
@@ -444,20 +450,14 @@ function drawCanvas() {
 		//drawQuadOnScreen(texture0.texture);
 	}
 	
-	function doEffect(stdlib, foreign, heap) {
+	/*function doEffect(stdlib, foreign, heap) {
 		'use asm';
 		var w = foreign.w | 0,
 			h = foreign.h | 0,
 			timer = foreign.timer,
 			i = 0, x = 0, y = 0;
 		
-		for (i = 0; i < w*50; i++) {
-			heap[i*4] = 200;
-			heap[i*4 + 1] = 0;
-			heap[i*4 + 2] = 0;
-			heap[i*4 + 3] = 255;
-		}
-		/*
+		
 		for(x = 0; (x | 0) < w; x++) {
 			for(y = 0; (y | 0) < h; y++) {
 				i = (h*x+y)*4;
@@ -465,44 +465,103 @@ function drawCanvas() {
 				heap[(i | 0) + 1] = Math.sin(y)*20+20;
 				heap[(i | 0) + 2] = Math.sin(y+timer/1000)*20+20;
 			}
-    	}*/
-	}
+    	}
+	}*/
 	
 	function doFloodFill(stdlib, foreign, heap) {
 		'use asm';
 		var w = foreign.w | 0,
 			h = foreign.h | 0,
 			bound = foreign.bound | 0,
-			i = 0, x = 0, y = 0;
+			i = 0;
 		
-		var indexes = 0;
-		for(x = 0; (x | 0) < w; x++) {
-			for(y = 0; (y | 0) < h; y++) {
-				i = (h*x+y)*4;
-				if (heap[i] == bound) break;
-				
-				/*heap[i] = 255-(Math.sin(timer/1000+Math.sin((timer*(x+h*Math.sin(timer/1000)+h)>>x)*Math.PI/10000)+Math.cos(timer*(y+w)/10000))*64<<3+104);
-				heap[(i | 0) + 1] = Math.sin(y)*20+20;
-				heap[(i | 0) + 2] = Math.sin(y+timer/1000)*20+20;*/
+		var color_index = 1;
+		
+		
+		floodfillFromPos(10000, bound);
+		
+		/*for (i = 0; i < w*h; i++) {
+			var index = (i * 4) | 0;
+			if (heap[index] == 255) {
+				floodfillFromPos(i, bound, 0);
+				color_index++;
+				if (color_index == 254) return;
 			}
-    	}
+		}*/
+		
+		function floodfillFromPos(pos, stopper) {
+			//if (level > 5) return;
+			floodfillLine(pos, stopper);
+			//floodfillLeft(pos, stopper);
+			//floodfillRight(pos, stopper);
+			if (pos+w < w*h) {
+				floodfillFromPos(pos+w, stopper);
+			}
+		}
+		
+		function floodfillLine(pos, stopper) {
+			var j = 0, index = 0;
+			var max = stdlib.Math.ceil(pos/w) * w;
+			console.log('max:' + max);
+			for (j = pos; j < max; j++) {
+				index = (j * 4) | 0;
+				if (heap[index] != stopper) {
+					heap[index] = color_index;
+				} else {
+					break;
+				} 
+			}
+			var min = stdlib.Math.floor(pos/w) * w;
+			console.log('min:' + min);
+			for (j = pos; j > min; j--) {
+				index = (j * 4) | 0;
+				if (heap[index] != stopper) {
+					heap[index] = color_index;
+				} else {
+					break;
+				} 
+			}
+		}
+		
+		function floodfillRight(pos, stopper) {
+			var j = 0, index = 0;
+			var max = stdlib.Math.ceil(pos/w) * w;
+			for (j = pos; j < max; j++, index += 4 ) {
+				//var index = (j * 4) | 0;
+				if (heap[index] != stopper) {
+					heap[index] = color_index;
+				} else {
+					return;
+				} 
+			}
+		}
+		
+		function floodfillLeft(pos, stopper) {
+			var j = 0, index = 0;
+			var min = stdlib.Math.floor(pos/w) * w;
+			for (j = pos; j > min; j--, index -= 4) {
+				//var index = (j * 4) | 0;
+				if (heap[index] != stopper) {
+					heap[index] = color_index;
+				} else {
+					return;
+				} 
+			}
+		}
 	}
 	
 	function drawThis() {
-		
 		let d2 = new Date();
 		let n2 = d2.getTime();
 		let timer = n2-n;
 		
 		drawBackground(timer);
 		drawLines(timer);				
-		
 	}
 	
 	(loop = function() {
 		requestAnimationFrame(loop);
 		//drawQuadOnScreen(texture0.texture);
-		
 		drawThis();
 	})();
 
@@ -686,41 +745,16 @@ function initShaderProgramQuad() {
 	var fragCode =
 		'precision mediump float;' +
 		'uniform sampler2D u_texture;' +
-		//'uniform vec2 v_resolution;' +
 		'varying vec2 v_resolution;' +
 		'varying vec2 v_texCoord;' +
 		'float rand(vec2 co){' +
 		'return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);' +
 		'}' +
 		'void main() {' +
-		//'vec2 uv = vec2(v_texCoord.xy / v_resolution.xy);' +
 		'vec4 color0 = texture2D(u_texture, v_texCoord);' +
-		//'vec4 color0 = texture2D(u_texture, vec2( (((v_texCoord.x * v_resolution.x) - 1.0) / v_resolution.x), (((v_texCoord.y * v_resolution.y) - 1.0) / v_resolution.y) ));' +
-		//'vec4 color0 = texture2D(u_texture, vec2(uv.x - 0.001, uv.y - 0.01));' +
-		//'if (color0 != vec4(0.0, 0.0, 0.0, 1.0)) color0 = vec4(rand(v_texCoord), 1.0 - rand(v_texCoord), rand(v_texCoord), 1.0);' +
 		'gl_FragColor = color0;' +
-		//'gl_FragColor = vec4(v_texCoord.x,v_texCoord.y,0.0,1.0);' + //color0;' +
-		
-		/*'vec4 c1;' +
-		'float cindex = 1.0;' +
-		'float tindex = 1.0;' +
-		'for (float x=0.0; x<512.0; x++)' +
-        '{' +
-		'	for (float y=0.0; y<512.0; y++)' +
-		'	{' +
-		'		c1=texture2D(u_texture, vec2(x / v_resolution.x, y / v_resolution.y));' +
-		'		if (c1 == vec4(0.0, 0.0, 0.0, 1.0)) tindex++;' +
-		//'		if ((x<v_texCoord.x) && (y<v_texCoord.y)) cindex = tindex;' +
-		'	}' +
-		'}' +
-		'float gs = cindex / tindex;' +
-		'gl_FragColor = vec4(gs,gs,gs,1.0);' +*/
 		'}';
 
-		
-        
-		
-		
 	var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
 	gl.shaderSource(fragShader, fragCode);
 	gl.compileShader(fragShader);
@@ -734,18 +768,9 @@ function initShaderProgramQuad() {
 	gl.attachShader(shaderProgram, fragShader);
 	gl.linkProgram(shaderProgram);
 
-	/*a_position = gl.getAttribLocation(shaderProgram, "a_position");
-	a_texCoord = gl.getAttribLocation(shaderProgram, "a_texCoord");
-	u_resolution = gl.getUniformLocation(someProgram, "u_resolution");
-	u_image0 = gl.getUniformLocation(someProgram, "u_image0");*/
-	
 	// look up where the vertex data needs to go.
 	positionLocation = gl.getAttribLocation(shaderProgram, "a_position");
 	texcoordLocation = gl.getAttribLocation(shaderProgram, "a_texCoord");
-
-	// lookup uniforms
-	//matrixLocation = gl.getUniformLocation(shaderProgram, "u_matrix");
-	//textureLocation = gl.getUniformLocation(shaderProgram, "u_texture");
 
 	// Create a buffer.
 	positionBuffer = gl.createBuffer();

@@ -36,7 +36,7 @@ gl.enable(gl.BLEND);
 var w = c.width = window.innerWidth;
 var h = c.height = window.innerHeight;
 
-gl.viewport(0, 0, c.width, c.height);
+gl.viewport(0, 0, w, h);
 
 //
 // request animation frame, from random place on the internet
@@ -182,10 +182,35 @@ for (j=0; j<nlines; j++) {
 	lines[lines.length-1][0] = { 'x': w-1.0, 'y': j*(h/nlines), 'direction':  -Math.PI*0.5, 'curve': -ang*Math.PI*0.015*Math.random()*2, 'step': 6.0, 'visible': true };
 }
 
+var colors = [];
+
+function newColor() {
+	var color = "rgba("+rand(255)+","+rand(255)+","+rand(255)+",1.0)";
+	
+	var alreadyused = false;
+	for (var i=0; i<colors.length; i++) {
+		if (colors[i] == color) alreadyused = true;
+	}
+	
+	if (alreadyused) color = newColor();
+	
+	return color;
+}
+
+function increaseColors() {
+	colors.push(newColor());
+}
+
 function drawCanvas() {
 	
-	console.log('draw canvas');
-		
+//	console.log('draw canvas');
+	
+	var canvas = document.createElement('canvas');
+	var ctx    = canvas.getContext('2d');
+	
+	canvas.width = ctx.width = w;
+	canvas.height = ctx.height = h;
+	
 	var d = new Date();
 	var n = d.getTime();
 
@@ -195,6 +220,9 @@ function drawCanvas() {
 	shaderProgramQuad = initShaderProgramQuad();
 	
 	function drawBackground(timer) {		
+		ctx.globalCompositeOperation="source-over";
+		ctx.fillStyle = "rgba(255,255,255,1.0)";
+		ctx.fillRect(0,0,w,h);
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	}
 				
@@ -203,6 +231,12 @@ function drawCanvas() {
 		let verts = [];
 		
 		var activelinecount = 0;
+		
+		// stroke
+		ctx.globalCompositeOperation="source-over";
+		ctx.lineCap="round";
+		ctx.lineWidth=2;
+		ctx.strokeStyle = "rgba(0,0,0,1.0)";
 		
 		// draw lines
 		for (let i=0; i<lines.length; i++) 
@@ -278,8 +312,7 @@ function drawCanvas() {
 				
 			}
 
-			// plot whole line
-			let prev = false;
+			// plot whole line (webgl)
 			for (let j=0; j<lines[i].length-1; j++) {
 
 				let thisx = lines[i][j]['x'];
@@ -299,12 +332,160 @@ function drawCanvas() {
 				
 			}
 			
+			// plot whole line (software canvas)
+			/*let prev = false;
+			for (let j=0; j<lines[i].length; j++) {
+
+				let thisx = lines[i][j]['x'];
+				let thisy = lines[i][j]['y'];
+				
+				// was invisible, now it's visible, lets start drawing the line
+				if ((prev == false) && (lines[i][j]['visible'])) {
+					// flash lines white when the timer equals the index
+					//if ((timer % lines[i].length) == i) {
+					//	ctx.strokeStyle="rgba(255,255,255,1.0)";
+					//} else {
+					//	ctx.strokeStyle=gradient;
+					//}
+					// start line
+					ctx.beginPath();
+					ctx.moveTo(thisx, thisy);
+					prev = true;
+				// was already visible and still is, lets keep drawing the line
+				} else if ((prev == true) && (lines[i][j]['visible'])) {
+					ctx.lineTo(thisx, thisy);
+				// was already visible and now it's not, lets stop drawing at this segment of the line
+				} else if ((prev == true) && (!lines[i][j]['visible'])) {
+					//ctx.closePath();
+					ctx.stroke();
+					prev = false;
+				}
+			}
+			// make sure it's closed when it's ended
+			if (prev == true) {
+				//ctx.closePath();
+				ctx.stroke();
+			}*/
+			
 		}
 		
 		//drawLinesOnScreen(verts);
 		drawLinesOnQuad(verts);
+		//ctx.width = w;
+		//ctx.height = h;
+		//ctx.drawImage( myBuffer.texture, 0, 0 );
+		//var image = ctx.getImageData(0,0,w,h);
+		//var data = image.data;
+
+		
+		//for (var i=0; i<w*5; i = i+4) {
+		//	image[i] = 100;
+		//}
+		/*
+		//image.data = data;
+		//var result = floodfill(image.data,5,5,{r:255,g:255,b:0,a:255},1,w,h);
+		//ctx.putImageData(image,0,0);
+		var idata = ctx.getImageData(0,0,w,h);
+    	var data = idata.data;
+		//doEffect({}, { w: w, h: h, timer: timer }, data);
+		// assumes background.r is 255 and dividing_pixels.r is 0
+    	doFloodFill({}, { w: w, h: h }, data);
+    	
+		idata.data = data;
+    	ctx.putImageData(idata,0,0);
+		
+		ctx.fillStyle = "rgba(0,255,255,1.0)";
+		ctx.fillRect(200,200,200,200);
+		
+		var tex = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, tex);
+ 
+		// let's assume all images are not a power of 2
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+ 
+		gl.bindTexture(gl.TEXTURE_2D, tex);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, ctx.canvas);
+	*/
+	
+		// get webgl texture data (to save as html5 image)
+		// http://stackoverflow.com/questions/8191083/can-one-easily-create-an-html-image-element-from-a-webgl-texture-object
+		gl.bindFramebuffer(gl.FRAMEBUFFER, myBuffer.buffer);
+		var data = new Uint8Array(w * h * 4);
+		gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, data);
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+		
+		// manipulate the data by software
+		/*for(x = 0; (x | 0) < w; x++) {
+			for(y = 0; (y | 0) < h; y++) {
+				i = (h*x+y)*4;
+				data[i] = 255-(Math.sin(timer/1000+Math.sin((timer*(x+h*Math.sin(timer/1000)+h)>>x)*Math.PI/10000)+Math.cos(timer*(y+w)/10000))*64<<3+104);
+				data[(i | 0) + 1] = Math.sin(y)*20+20;
+				data[(i | 0) + 2] = Math.sin(y+timer/1000)*20+20;
+			}
+    	}*/
+		doEffect({}, { w: w, h: h, timer: timer }, data);
+		
+		// create texture with the data
+		/*var tex = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, tex);
+		// let's assume all images are not a power of 2
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.bindTexture(gl.TEXTURE_2D, tex);*/
+		gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(data));
+	
+		// draw on screen
+		//drawQuadOnScreen(tex);
 		drawQuadOnScreen(myBuffer.texture);
 		//drawQuadOnScreen(texture0.texture);
+	}
+	
+	function doEffect(stdlib, foreign, heap) {
+		'use asm';
+		var w = foreign.w | 0,
+			h = foreign.h | 0,
+			timer = foreign.timer,
+			i = 0, x = 0, y = 0;
+		
+		for (i = 0; i < w*50; i++) {
+			heap[i*4] = 200;
+			heap[i*4 + 1] = 0;
+			heap[i*4 + 2] = 0;
+			heap[i*4 + 3] = 255;
+		}
+		/*
+		for(x = 0; (x | 0) < w; x++) {
+			for(y = 0; (y | 0) < h; y++) {
+				i = (h*x+y)*4;
+				heap[i] = 255-(Math.sin(timer/1000+Math.sin((timer*(x+h*Math.sin(timer/1000)+h)>>x)*Math.PI/10000)+Math.cos(timer*(y+w)/10000))*64<<3+104);
+				heap[(i | 0) + 1] = Math.sin(y)*20+20;
+				heap[(i | 0) + 2] = Math.sin(y+timer/1000)*20+20;
+			}
+    	}*/
+	}
+	
+	function doFloodFill(stdlib, foreign, heap) {
+		'use asm';
+		var w = foreign.w | 0,
+			h = foreign.h | 0,
+			bound = foreign.bound | 0,
+			i = 0, x = 0, y = 0;
+		
+		var indexes = 0;
+		for(x = 0; (x | 0) < w; x++) {
+			for(y = 0; (y | 0) < h; y++) {
+				i = (h*x+y)*4;
+				if (heap[i] == bound) break;
+				
+				/*heap[i] = 255-(Math.sin(timer/1000+Math.sin((timer*(x+h*Math.sin(timer/1000)+h)>>x)*Math.PI/10000)+Math.cos(timer*(y+w)/10000))*64<<3+104);
+				heap[(i | 0) + 1] = Math.sin(y)*20+20;
+				heap[(i | 0) + 2] = Math.sin(y+timer/1000)*20+20;*/
+			}
+    	}
 	}
 	
 	function drawThis() {
@@ -472,6 +653,7 @@ var positionBuffer;
 var texcoordBuffer;
 var resolutionLocation;
 var textureLocation;
+var resolutionLocation2;
 
 function initShaderProgramQuad() {
 
@@ -479,6 +661,7 @@ function initShaderProgramQuad() {
 		'attribute vec2 a_position;' +
 		'attribute vec2 a_texCoord;' +
 		'uniform vec2 u_resolution;' +
+		//'varying vec2 v_resolution;' +
 		'varying vec2 v_texCoord;' +
 		'void main() {' +
 		'vec2 zeroToOne = a_position;' + // / u_resolution;' +
@@ -486,6 +669,7 @@ function initShaderProgramQuad() {
 		'vec2 clipSpace = zeroToTwo - 1.0;' +
 		'gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);' +
 		//'gl_Position = vec4(a_position[0], a_position[1], 0, 1);' +
+		//'v_resolution = u_resolution;' +
 		'v_texCoord = a_texCoord;' +
 		'}';
 
@@ -497,16 +681,46 @@ function initShaderProgramQuad() {
 		return;
 	}
 
+	//reference for possible 2d raycasting solution http://stackoverflow.com/questions/34708021/how-to-implement-2d-raycasting-light-effect-in-glsl
+	
 	var fragCode =
 		'precision mediump float;' +
 		'uniform sampler2D u_texture;' +
+		//'uniform vec2 v_resolution;' +
+		'varying vec2 v_resolution;' +
 		'varying vec2 v_texCoord;' +
+		'float rand(vec2 co){' +
+		'return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);' +
+		'}' +
 		'void main() {' +
+		//'vec2 uv = vec2(v_texCoord.xy / v_resolution.xy);' +
 		'vec4 color0 = texture2D(u_texture, v_texCoord);' +
+		//'vec4 color0 = texture2D(u_texture, vec2( (((v_texCoord.x * v_resolution.x) - 1.0) / v_resolution.x), (((v_texCoord.y * v_resolution.y) - 1.0) / v_resolution.y) ));' +
+		//'vec4 color0 = texture2D(u_texture, vec2(uv.x - 0.001, uv.y - 0.01));' +
+		//'if (color0 != vec4(0.0, 0.0, 0.0, 1.0)) color0 = vec4(rand(v_texCoord), 1.0 - rand(v_texCoord), rand(v_texCoord), 1.0);' +
 		'gl_FragColor = color0;' +
-		//'gl_FragColor = vec4(1.0,0.0,0.0,0.5);' + //color0;' +
+		//'gl_FragColor = vec4(v_texCoord.x,v_texCoord.y,0.0,1.0);' + //color0;' +
+		
+		/*'vec4 c1;' +
+		'float cindex = 1.0;' +
+		'float tindex = 1.0;' +
+		'for (float x=0.0; x<512.0; x++)' +
+        '{' +
+		'	for (float y=0.0; y<512.0; y++)' +
+		'	{' +
+		'		c1=texture2D(u_texture, vec2(x / v_resolution.x, y / v_resolution.y));' +
+		'		if (c1 == vec4(0.0, 0.0, 0.0, 1.0)) tindex++;' +
+		//'		if ((x<v_texCoord.x) && (y<v_texCoord.y)) cindex = tindex;' +
+		'	}' +
+		'}' +
+		'float gs = cindex / tindex;' +
+		'gl_FragColor = vec4(gs,gs,gs,1.0);' +*/
 		'}';
 
+		
+        
+		
+		
 	var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
 	gl.shaderSource(fragShader, fragCode);
 	gl.compileShader(fragShader);
@@ -563,8 +777,10 @@ function initShaderProgramQuad() {
 
 	resolutionLocation = gl.getUniformLocation(shaderProgram, "u_resolution");
 	
+	resolutionLocation2 = gl.getUniformLocation(shaderProgram, "v_resolution");
+	
 	textureLocation = gl.getUniformLocation(shaderProgram, "u_texture");
-
+	
 	return shaderProgram;	 
 }
 
@@ -586,6 +802,7 @@ function drawQuadOnScreen(texture) {
     gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
 
 	gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);	
+	gl.uniform2f(resolutionLocation2, gl.canvas.width, gl.canvas.height);	
 	gl.uniform1i(textureLocation, 0);
 	
 	gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -599,8 +816,8 @@ function createFramebuffer(gl, width, height) {
 	var buffer = gl.createFramebuffer();
 	//bind framebuffer to texture
 	gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
-	buffer.width = 512;
-    buffer.height = 512;
+	buffer.width = width;
+    buffer.height = height;
 
 	var texture = gl.createTexture();
 	//set properties for the texture
@@ -675,3 +892,150 @@ var textureInfos = [
   loadImageAndCreateTextureInfo('gfx/keyboard.jpg'),
 ];*/
 
+var floodfill = (function() {
+
+	//Copyright(c) Max Irwin - 2011, 2015, 2016
+	//MIT License
+
+	function floodfill(data,x,y,fillcolor,tolerance,width,height) {
+
+		var length = data.length;
+		var Q = [];
+		var i = (x+y*width)*4;
+		var e = i, w = i, me, mw, w2 = width*4;
+
+		var targetcolor = [data[i],data[i+1],data[i+2],data[i+3]];
+
+		if(!pixelCompare(i,targetcolor,fillcolor,data,length,tolerance)) { return false; }
+		Q.push(i);
+		while(Q.length) {
+			i = Q.pop();
+			if(pixelCompareAndSet(i,targetcolor,fillcolor,data,length,tolerance)) {
+				e = i;
+				w = i;
+				mw = parseInt(i/w2)*w2; //left bound
+				me = mw+w2;             //right bound
+				while(mw<w && mw<(w-=4) && pixelCompareAndSet(w,targetcolor,fillcolor,data,length,tolerance)); //go left until edge hit
+				while(me>e && me>(e+=4) && pixelCompareAndSet(e,targetcolor,fillcolor,data,length,tolerance)); //go right until edge hit
+				for(var j=w;j<e;j+=4) {
+					if(j-w2>=0     && pixelCompare(j-w2,targetcolor,fillcolor,data,length,tolerance)) Q.push(j-w2); //queue y-1
+					if(j+w2<length && pixelCompare(j+w2,targetcolor,fillcolor,data,length,tolerance)) Q.push(j+w2); //queue y+1
+				}
+			}
+		}
+		return data;
+	};
+
+	function pixelCompare(i,targetcolor,fillcolor,data,length,tolerance) {
+		if (i<0||i>=length) return false; //out of bounds
+		if (data[i+3]===0 && fillcolor.a>0) return true;  //surface is invisible and fill is visible
+
+		if (
+			Math.abs(targetcolor[3] - fillcolor.a)<=tolerance &&
+			Math.abs(targetcolor[0] - fillcolor.r)<=tolerance &&
+			Math.abs(targetcolor[1] - fillcolor.g)<=tolerance &&
+			Math.abs(targetcolor[2] - fillcolor.b)<=tolerance
+		) return false; //target is same as fill
+
+		if (
+			(targetcolor[3] === data[i+3]) &&
+			(targetcolor[0] === data[i]  ) &&
+			(targetcolor[1] === data[i+1]) &&
+			(targetcolor[2] === data[i+2])
+		) return true; //target matches surface
+
+		if (
+			Math.abs(targetcolor[3] - data[i+3])<=(255-tolerance) &&
+			Math.abs(targetcolor[0] - data[i]  )<=tolerance &&
+			Math.abs(targetcolor[1] - data[i+1])<=tolerance &&
+			Math.abs(targetcolor[2] - data[i+2])<=tolerance
+		) return true; //target to surface within tolerance
+
+		return false; //no match
+	};
+
+	function pixelCompareAndSet(i,targetcolor,fillcolor,data,length,tolerance) {
+		if(pixelCompare(i,targetcolor,fillcolor,data,length,tolerance)) {
+			//fill the color
+			data[i]   = fillcolor.r;
+			data[i+1] = fillcolor.g;
+			data[i+2] = fillcolor.b;
+			data[i+3] = fillcolor.a;
+			return true;
+		}
+		return false;
+	};
+
+	function fillUint8ClampedArray(data,x,y,color,tolerance,width,height) {
+		if (!data instanceof Uint8ClampedArray) throw new Error("data must be an instance of Uint8ClampedArray");
+		if (isNaN(width)  || width<1)  throw new Error("argument 'width' must be a positive integer");
+		if (isNaN(height) || height<1) throw new Error("argument 'height' must be a positive integer");
+		if (isNaN(x) || x<0) throw new Error("argument 'x' must be a positive integer");
+		if (isNaN(y) || y<0) throw new Error("argument 'y' must be a positive integer");
+		if (width*height*4!==data.length) throw new Error("width and height do not fit Uint8ClampedArray dimensions");
+
+		var xi = Math.floor(x);
+		var yi = Math.floor(y);
+
+		if (xi!==x) console.warn("x truncated from",x,"to",xi);
+		if (yi!==y) console.warn("y truncated from",y,"to",yi);
+
+		//Maximum tolerance of 254, Default to 0
+		tolerance = (!isNaN(tolerance)) ? Math.min(Math.abs(Math.round(tolerance)),254) : 0;
+
+		return floodfill(data,xi,yi,color,tolerance,width,height);
+	};
+
+	var getComputedColor = function(c) {
+		var temp = document.createElement("div");
+		var color = {r:0,g:0,b:0,a:0};
+		temp.style.color = c;
+		temp.style.display = "none";
+		document.body.appendChild(temp);
+		//Use native window.getComputedStyle to parse any CSS color pattern
+		var style = window.getComputedStyle(temp,null).color;
+		document.body.removeChild(temp);
+
+		var recol = /([\.\d]+)/g;
+		var vals  = style.match(recol);
+		if (vals && vals.length>2) {
+			//Coerce the string value into an rgba object
+			color.r = parseInt(vals[0])||0;
+			color.g = parseInt(vals[1])||0;
+			color.b = parseInt(vals[2])||0;
+			color.a = Math.round((parseFloat(vals[3])||1.0)*255);
+		}
+		return color;
+	};
+
+	function fillContext(x,y,tolerance,left,top,right,bottom) {
+		var ctx  = this;
+		
+		//Gets the rgba color from the context fillStyle
+		var color = getComputedColor(this.fillStyle);
+
+		//Defaults and type checks for image boundaries
+		left     = (isNaN(left)) ? 0 : left;
+		top      = (isNaN(top)) ? 0 : top;
+		right    = (!isNaN(right)&&right) ? Math.min(Math.abs(right),ctx.canvas.width) : ctx.canvas.width;
+		bottom   = (!isNaN(bottom)&&bottom) ? Math.min(Math.abs(bottom),ctx.canvas.height) : ctx.canvas.height;
+
+		var image = ctx.getImageData(left,top,right,bottom);
+		
+		var data = image.data;
+		var width = image.width;
+		var height = image.height;
+		
+		if(width>0 && height>0) {
+			fillUint8ClampedArray(data,x,y,color,tolerance,width,height);
+			ctx.putImageData(image,left,top);
+		}
+	};
+
+	if (typeof CanvasRenderingContext2D != 'undefined') {
+		CanvasRenderingContext2D.prototype.fillFlood = fillContext;
+	};
+
+	return fillUint8ClampedArray;
+
+})();

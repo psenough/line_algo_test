@@ -161,6 +161,23 @@ for (var i=0; i<nbars; i++) {
 	lines[i][1] = { 'x': (i+1)*wbar+1.0, 'y': h, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
 }
 */
+
+lines[lines.length] = [];
+lines[lines.length-1][0] = { 'x': 0.0, 'y': 0.0, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
+lines[lines.length-1][1] = { 'x': w, 'y': 0.0, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
+
+lines[lines.length] = [];
+lines[lines.length-1][0] = { 'x': 0.0, 'y': 0.0, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
+lines[lines.length-1][1] = { 'x': 0.0, 'y': h, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
+
+lines[lines.length] = [];
+lines[lines.length-1][0] = { 'x': w, 'y': 0.0, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
+lines[lines.length-1][1] = { 'x': w, 'y': h, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
+
+lines[lines.length] = [];
+lines[lines.length-1][0] = { 'x': 0.0, 'y': h, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
+lines[lines.length-1][1] = { 'x': w, 'y': h, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
+
 var nlines = 12;
 var ang = (Math.PI*2) / 12.0;
 for (var j=0; j<nlines; j++) {
@@ -386,7 +403,23 @@ function drawCanvas() {
 			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(data));
 			*/
 			
-			//TODO: calculate one more polygon on the intersections and draw it on top of the existing floodfillbuffer with another floodfills index
+			// calculate a new polygon on the intersections
+			var polygon = [];
+			polygon[0] = { 'index:': rand(intersects.length), 'dir': rand(2) };
+
+			var done = true;
+			while (!done) {
+				var next = findNextIntersect(polygon);
+				if (next == false) {
+					done = true;
+				} else {
+					polygon[polygon.length] = next;
+					if (polygon[0]['index'] == next['index']) done = true;
+				}
+			}
+			
+			//TODO: draw it on top of the existing floodfillbuffer with a different floodfills index
+
 			
 			floodfills++;
 			
@@ -402,8 +435,45 @@ function drawCanvas() {
 		//drawLinesOnQuad(verts);
 		drawQuadOnScreen(floodfillBuffer.texture,myBuffer.texture);
 		
-
+	}
+	
+	function findNextIntersect(polygon) {
 		
+		let inter = polygon[polygon.length-1];
+		
+		let startline = intersects[inter['index']]['line1'];
+		let startsegm = intersects[inter['index']]['segment1'];
+		
+		// get list of intersections on same line that are not same as ours
+		let list = [];
+		for (let i=0; i<intersects.length; i++) {
+			if ((intersects[i]['line1'] == startline) && (intersects[start]['segment1'] != startsegm)) {
+				list[list.length] = { 'line': intersects[i]['line1'], 'segment':  intersects[i]['segment1'], 'index': i };
+			} else if ((intersects[i]['line2'] == startline) && (intersects[start]['segment2'] != startsegm)) {
+				list[list.length] = { 'line': intersects[i]['line2'], 'segment':  intersects[i]['segment2'], 'index': i };
+			}
+		}
+		let best = false;
+		for (let j=0; j<list.length; j++) {
+			let segm_dist = Math.abs(list[j]['segment'] - startsegm);
+			if (j == 0) {
+				best = { 'index': list[j]['index'], 'dir': calcDir(), 'segm_dist': segm_dist};
+			} else {
+				//TODO: choose next best intersection segment farther away (to get larger polygon) - choosing closest possible for now, to avoid crossover issues
+				//TODO: look for polygon closure somehow (guess we need to keep reference to starting intersect and look for that line again)
+				//TODO: avoid overcrossing the starting line
+				//TODO: ensure we are always turning right by calculating calcdir from x y coordinates using inter['dir']
+				
+				// closest possible for now, to avoid crossover issues
+				if (segm_dist < best['segm_dist']) best = { 'index': list[j]['index'], 'dir': calcDir(), 'segm_dist': segm_dist };	
+			}
+		}
+		return best;
+	}
+	
+	function calcDir() {
+		//TODO: implement this function properly
+		return rand(2);
 	}
 	
 	function doFloodFill(stdlib, foreign, heap) {

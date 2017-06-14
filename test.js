@@ -132,8 +132,8 @@ function lineIntersect(x1,y1,x2,y2,x3,y3,x4,y4) {
     return {'x':x, 'y':y};
 }
 
-var maxlines = 150;
-var maxactivelines = 16;
+var maxlines = 200;
+var maxactivelines = 20;
 
 var lines = [];
 /*
@@ -219,7 +219,7 @@ function increaseColors() {
 }
 
 var floodfills = 0;
-var floodfills_per_lines_ratio = 150;
+var floodfills_per_lines_ratio = 50;
 
 var intersects = [];
 
@@ -384,6 +384,7 @@ function drawCanvas() {
 			
 		}
 	
+		//console.log('lines count: ' + lines.length + ' ffplr: ' + floodfills_per_lines_ratio);
 		if ((floodfills*floodfills_per_lines_ratio < lines.length) && (lines.length > floodfills_per_lines_ratio)) {
 			
 			drawLinesOnQuadWithBackground(verts, floodfillBuffer.texture);
@@ -406,10 +407,11 @@ function drawCanvas() {
 			
 			// calculate a new polygon on the intersections
 			var polygon = [];
-			polygon[0] = { 'index:': rand(intersects.length), 'dir': rand(2) };
-
-			var done = true;
+			polygon[0] = { 'index': rand(intersects.length), 'dir': rand(2) };
+			console.log(polygon);
+			var done = false;
 			while (!done) {
+				console.log('trying something');
 				var next = findNextIntersect(polygon);
 				if (next == false) {
 					done = true;
@@ -418,6 +420,9 @@ function drawCanvas() {
 					if (polygon[0]['index'] == next['index']) done = true;
 				}
 			}
+			console.log('done trying');
+			console.log(polygon);
+			//TODO: debug why this aint working
 			
 			//TODO: draw it on top of the existing floodfillbuffer with a different floodfills index
 
@@ -442,23 +447,30 @@ function drawCanvas() {
 		
 		let inter = polygon[polygon.length-1];
 		
+		//console.log(polygon[polygon.length-1]);
+		
+		//console.log(inter['index']);
+		console.log(intersects);
+		if (intersects[inter['index']] == undefined) return false;
+		
 		let startline = intersects[inter['index']]['line1'];
 		let startsegm = intersects[inter['index']]['segment1'];
 		
 		// get list of intersections on same line that are not same as ours
 		let list = [];
 		for (let i=0; i<intersects.length; i++) {
-			if ((intersects[i]['line1'] == startline) && (intersects[start]['segment1'] != startsegm)) {
+			if ((intersects[i]['line1'] == startline) && (intersects[i]['segment1'] != startsegm)) {
 				list[list.length] = { 'line': intersects[i]['line1'], 'segment':  intersects[i]['segment1'], 'index': i };
-			} else if ((intersects[i]['line2'] == startline) && (intersects[start]['segment2'] != startsegm)) {
+			} else if ((intersects[i]['line2'] == startline) && (intersects[i]['segment2'] != startsegm)) {
 				list[list.length] = { 'line': intersects[i]['line2'], 'segment':  intersects[i]['segment2'], 'index': i };
 			}
 		}
+		console.log(list);
 		let best = false;
 		for (let j=0; j<list.length; j++) {
 			let segm_dist = Math.abs(list[j]['segment'] - startsegm);
 			if (j == 0) {
-				best = { 'index': list[j]['index'], 'dir': calcDir(), 'segm_dist': segm_dist};
+				best = { 'index': list[j]['index'], 'dir': calcDir(startline, startsegm, list[j]['line'], list[j]['segment']), 'segm_dist': segm_dist};
 			} else {
 				//TODO: choose next best intersection segment farther away (to get larger polygon) - choosing closest possible for now, to avoid crossover issues
 				//TODO: look for polygon closure somehow (guess we need to keep reference to starting intersect and look for that line again)
@@ -466,15 +478,29 @@ function drawCanvas() {
 				//TODO: ensure we are always turning right by calculating calcdir from x y coordinates using inter['dir']
 				
 				// closest possible for now, to avoid crossover issues
-				if (segm_dist < best['segm_dist']) best = { 'index': list[j]['index'], 'dir': calcDir(), 'segm_dist': segm_dist };	
+				if (segm_dist < best['segm_dist']) best = { 'index': list[j]['index'], 'dir': calcDir(startline, startsegm, list[j]['line'], list[j]['segment']), 'segm_dist': segm_dist };	
 			}
 		}
 		return best;
 	}
 	
-	function calcDir() {
-		//TODO: implement this function properly
-		return rand(2);
+	function calcDir(l1, s1, l2, s2) {
+		
+		//TODO: test if this dot product is correctly calculated and giving expected direction information (always turn clockwise)
+		
+		console.log( l1 + ' ' + s1 + ' ' + l2 + ' ' + s2);
+		console.log(lines);
+		
+		let u1 = lines[l1][s1-1] || lines[l1][s1];
+		let u2 = lines[l1][s1+1] || lines[l1][s1];
+		
+		let v1 = lines[l2][s2-1] || lines[l2][s2];
+		let v2 = lines[l2][s2+1] || lines[l2][s2];
+		
+		let dp = (u1['x'] - u2['x']) * (v1['x'] - v2['x']) + (u1['y'] - u2['y']) * (v1['y'] - v2['y']);
+		console.log(dp);
+
+		return (dp>0)?1:0;
 	}
 	
 	function doFloodFill(stdlib, foreign, heap) {

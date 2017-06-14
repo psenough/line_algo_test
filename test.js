@@ -71,7 +71,7 @@ var texture0;
 
 
 b.onload = function() {
-	texture0 = loadImageAndCreateTextureInfo('gfx/star.jpg');
+	//texture0 = loadImageAndCreateTextureInfo('gfx/star.jpg');
 	drawCanvas();
 	//shaderProgramQuad = initShaderProgramQuad();
 	//drawQuadOnScreen();
@@ -132,7 +132,7 @@ function lineIntersect(x1,y1,x2,y2,x3,y3,x4,y4) {
     return {'x':x, 'y':y};
 }
 
-var maxlines = 350;
+var maxlines = 150;
 var maxactivelines = 16;
 
 var lines = [];
@@ -233,8 +233,10 @@ function drawCanvas() {
 	canvas.width = ctx.width = w;
 	canvas.height = ctx.height = h;*/
 	
-	var d = new Date();
-	var n = d.getTime();
+	let d = new Date();
+	let n = d.getTime();
+	
+	let prevtime = n;
 
 	myBuffer = createFramebuffer(gl, gl.canvas.width, gl.canvas.height);
 	floodfillBuffer = createFramebuffer(gl, gl.canvas.width, gl.canvas.height);
@@ -242,7 +244,7 @@ function drawCanvas() {
 	//initQuadBuffer();
 	shaderProgramQuad = initShaderProgramQuad();
 	
-	function drawBackground(timer) {		
+	function drawBackground(timer, delta) {		
 		/*ctx.globalCompositeOperation="source-over";
 		ctx.fillStyle = "rgba(255,255,255,1.0)";
 		ctx.fillRect(0,0,w,h);*/
@@ -254,11 +256,11 @@ function drawCanvas() {
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	}
 				
-	function drawLines(timer) {
+	function drawLines(timer, delta) {
 		
 		let verts = [];
 		
-		var activelinecount = 0;
+		let activelinecount = 0;
 		
 		// stroke
 		/*ctx.globalCompositeOperation="source-over";
@@ -278,9 +280,8 @@ function drawCanvas() {
 				activelinecount++;
 				
 				// calculate next line step
-				// TODO: fix this to calculate position based on timer and not frames
-				let thisx = ref['x'] + Math.sin(ref['direction'])*ref['step'];
-				let thisy = ref['y'] + Math.cos(ref['direction'])*ref['step'];
+				let thisx = ref['x'] + Math.sin(ref['direction'])*(ref['step']*delta);
+				let thisy = ref['y'] + Math.cos(ref['direction'])*(ref['step']*delta);
 				
 				// test if this new line segment will cross any previous lines existing
 				let intersect = false;
@@ -550,9 +551,11 @@ function drawCanvas() {
 		let d2 = new Date();
 		let n2 = d2.getTime();
 		let timer = n2-n;
+		let delta = (n2-prevtime)/30;
+		prevtime = n2;
 		
-		drawBackground(timer);
-		drawLines(timer);				
+		drawBackground(timer, delta);
+		drawLines(timer, delta);
 	}
 	
 	(loop = function() {

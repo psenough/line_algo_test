@@ -223,6 +223,8 @@ var floodfills_per_lines_ratio = 50;
 
 var intersects = [];
 
+let loop = undefined;
+
 function drawCanvas() {
 	
 //	console.log('draw canvas');
@@ -384,8 +386,15 @@ function drawCanvas() {
 			
 		}
 	
-		//console.log('lines count: ' + lines.length + ' ffplr: ' + floodfills_per_lines_ratio);
-		if ((floodfills*floodfills_per_lines_ratio < lines.length) && (lines.length > floodfills_per_lines_ratio)) {
+		console.log(lines);
+		//TODO: optimize this to count globally and not recount per frame
+		let countgrownlines = 0;
+		for (var i=0; i< lines.length; i++) {
+			if (lines[i].length > 1) countgrownlines++;
+		}
+		
+		//console.log('lines count: ' + lines.length + ' ffplr: ' + floodfills_per_lines_ratio + ' countgrownlines: ' + countgrownlines);
+		if ((floodfills*floodfills_per_lines_ratio < countgrownlines) && (countgrownlines > floodfills_per_lines_ratio)) {
 			
 			drawLinesOnQuadWithBackground(verts, floodfillBuffer.texture);
 			/*
@@ -406,23 +415,26 @@ function drawCanvas() {
 			*/
 			
 			// calculate a new polygon on the intersections
-			var polygon = [];
-			polygon[0] = { 'index': rand(intersects.length), 'dir': rand(2) };
-			console.log(polygon);
+			let polygon_indexes = [];
+			polygon_indexes[0] = rand(intersects.length);
 			var done = false;
 			while (!done) {
 				console.log('trying something');
-				var next = findNextIntersect(polygon);
+				var next = findNextIntersect(polygon_indexes);
 				if (next == false) {
 					done = true;
 				} else {
-					polygon[polygon.length] = next;
-					if (polygon[0]['index'] == next['index']) done = true;
+					polygon_indexes[polygon_indexes.length] = next;
+					if (polygon_indexes[0] == next) done = true;
 				}
 			}
 			console.log('done trying');
 			console.log(polygon);
-			//TODO: debug why this aint working
+			
+			//loop = undefined;
+			//return;
+			
+			//TODO: retest this
 			
 			//TODO: draw it on top of the existing floodfillbuffer with a different floodfills index
 
@@ -445,17 +457,75 @@ function drawCanvas() {
 	
 	function findNextIntersect(polygon) {
 		
-		let inter = polygon[polygon.length-1];
+		let first, previous, latest, best;
 		
-		//console.log(polygon[polygon.length-1]);
+		latest = polygon[polygon.length-1];
+		if (!latest) return false;
+		if (intersects[latest] == undefined) return false;
 		
-		//console.log(inter['index']);
-		console.log(intersects);
-		if (intersects[inter['index']] == undefined) return false;
+		var options = getTravelOptions(latest);
+		if (options.length == 0) return false;
 		
-		let startline = intersects[inter['index']]['line1'];
-		let startsegm = intersects[inter['index']]['segment1'];
+		if (polygon.length == 1) {
+			
+			best = options[rand(options.length)];	
+			
+		} else {
+			
+			first = polygon[0];
+			previous = polygon[polygon.length-2];
+			
+			if (!first) return false;
+			if (!previous) return false;
+			
+			if (intersects[first] == undefined) return false;
+			if (intersects[previous] == undefined) return false;
+			
+			let best_value = undefined;
+			let best_index = undefined;
+			for (let i=0; i<options.length; i++) {
+				
+				// prevent backtracking
+				if (options[i] == previous) continue;
+				
+				let l1 = intersections[options[i]]['line1'];
+				let s1 = intersections[options[i]]['segment1'];
+				let lf = intersections[first]['line1'];
+				let sf = intersections[first]['segment1'];
+				
+				// stay closest possible to point of origin
+				if (best == undefined) {
+					best_value = calcDistance( lines[l1][s1]['x'], lines[l1][s1]['y'], lines[lf][sf]['x'], lines[lf][sf]['y'] );
+					best_index = i;
+				} else {
+					let test_value = calcDistance( lines[l1][s1]['x'], lines[l1][s1]['y'], lines[lf][sf]['x'], lines[lf][sf]['y'] );
+					if (test_value < best_value) {
+						best_value = test_value;
+						best_index = i;
+					}
+				}
+			}
+			
+			best = best_index;
+
+		}
 		
+		//TODO: test which one is faster, don't think it really costs much CPU eitherway, could also not use sqrt, don't need _exact_ distance, just a comparative measurement
+		function calcDistance(x1,y1,x2,y2) {
+			//return Math.hypot(x2-x1, y2-y1);
+			return Math.sqrt( Math.pow((x1-x2), 2) + Math.pow((y1-y2), 2) );
+		}
+		
+		
+		//TODO: walk in direction of segment until next intersection
+		//TODO: on intersection get list of all possible ways (exclude backtrack, exclude invisible lines), save segment and direction
+		//TODO: calculate absolute distance between the next step in that direction and the absolute starting point of the polygon
+		//TODO: pick the min of the list
+		
+		
+		
+		/*
+		//TODO: change this, it can't be just from same line, they could be from same line and be invisible in between
 		// get list of intersections on same line that are not same as ours
 		let list = [];
 		for (let i=0; i<intersects.length; i++) {
@@ -480,11 +550,124 @@ function drawCanvas() {
 				// closest possible for now, to avoid crossover issues
 				if (segm_dist < best['segm_dist']) best = { 'index': list[j]['index'], 'dir': calcDir(startline, startsegm, list[j]['line'], list[j]['segment']), 'segm_dist': segm_dist };	
 			}
-		}
+		}*/
 		return best;
 	}
 	
-	function calcDir(l1, s1, l2, s2) {
+	function getTravelOptions(inter) {
+		
+		let options = [];
+		
+		if (('line1' in inter) && ('segment1' in inter)) {
+			let line = lines[inter['line1']];
+			if (line != undefined) {
+				let segm = inter['segment1'];
+				if (line[segm]) != undefined) {
+					// check going up
+					if (line[segm+1] != undefined) {
+						if (line[segm+1]['visible'] == true) {
+							options[options.length] = findNextIntersectInLine(inter['line1'], segm);
+						}
+					}
+					// check going down
+					if (line[segm-1] != undefined) {
+						if (line[segm-1]['visible'] == true) {
+							options[options.length] = findPrevIntersectInLine(inter['line1'], segm);
+						}
+					}
+				}
+			}
+		}
+		
+		if (('line2' in inter) && ('segment2' in inter)) {
+			let line = lines[inter['line2']];
+			if (line != undefined) {
+				let segm = inter['segment2'];
+				if (line[segm]) != undefined) {
+					// check going up
+					if (line[segm+1] != undefined) {
+						if (line[segm+1]['visible'] == true) {
+							options[options.length] = findNextIntersectInLine(inter['line1'], segm);
+						}
+					}
+					// check going down
+					if (line[segm-1] != undefined) {
+						if (line[segm-1]['visible'] == true) {
+							options[options.length] = findPrevIntersectInLine(inter['line1'], segm);
+						}
+					}
+				}
+			}
+		}
+		console.log('these are our travel options:');
+		console.log(options);
+		
+		return options;
+	}
+	
+	function findNextIntersectInLine(startline, startsegm) {
+		var closest = undefined;
+		var index = undefined;
+		for (let i=0; i<intersects.length; i++) {
+			if ((intersects[i]['line1'] == startline) && (intersects[i]['segment1'] != startsegm) && (intersects[i]['segment1'] > startsegm)) {
+				if (closest == undefined) {
+					closest = Math.abs(intersects[i]['segment1'] - startsegm);
+					index = i;
+				} else {
+					var test = Math.abs(intersects[i]['segment1'] - startsegm);
+					if (test < closest) {
+						closest = test;
+						index = i;
+					}
+				}
+			} else if ((intersects[i]['line2'] == startline) && (intersects[i]['segment2'] != startsegm) && (intersects[i]['segment2'] > startsegm)) {
+				if (closest == undefined) {
+					closest = Math.abs(intersects[i]['segment2'] - startsegm);
+					index = i;
+				} else {
+					var test = Math.abs(intersects[i]['segment2'] - startsegm);
+					if (test < closest) {
+						closest = test;
+						index = i;
+					}
+				}
+			}
+		}
+		return index;
+	}
+	
+	function findPrevIntersectInLine(startline, startsegm) {
+		var closest = undefined;
+		var index = undefined;
+		for (let i=0; i<intersects.length; i++) {
+			if ((intersects[i]['line1'] == startline) && (intersects[i]['segment1'] != startsegm) && (intersects[i]['segment1'] < startsegm)) {
+				if (closest == undefined) {
+					closest = Math.abs(intersects[i]['segment1'] - startsegm);
+					index = i;
+				} else {
+					var test = Math.abs(intersects[i]['segment1'] - startsegm);
+					if (test < closest) {
+						closest = test;
+						index = i;
+					}
+				}
+			} else if ((intersects[i]['line2'] == startline) && (intersects[i]['segment2'] != startsegm) && (intersects[i]['segment2'] < startsegm)) {
+				if (closest == undefined) {
+					closest = Math.abs(intersects[i]['segment2'] - startsegm);
+					index = i;
+				} else {
+					var test = Math.abs(intersects[i]['segment2'] - startsegm);
+					if (test < closest) {
+						closest = test;
+						index = i;
+					}
+				}
+			}
+		}
+		return index;
+	}
+	
+	/*function calcDir(l1, s1, l2, s2) {
 		
 		//TODO: test if this dot product is correctly calculated and giving expected direction information (always turn clockwise)
 		
@@ -501,9 +684,9 @@ function drawCanvas() {
 		console.log(dp);
 
 		return (dp>0)?1:0;
-	}
+	}*/
 	
-	function doFloodFill(stdlib, foreign, heap) {
+	/*function doFloodFill(stdlib, foreign, heap) {
 		'use asm';
 		var w = foreign.w | 0,
 			h = foreign.h | 0,
@@ -522,14 +705,14 @@ function drawCanvas() {
 		
 		//floodfillFromPos(1000000, bound);
 		
-		/*for (i = 0; i < w*h; i++) {
-			var index = (i * 4) | 0;
-			if (heap[index] == 255) {
-				floodfillFromPos(i, bound, 0);
-				color_index++;
-				if (color_index == 254) return;
-			}
-		}*/
+		//for (i = 0; i < w*h; i++) {
+		//	var index = (i * 4) | 0;
+		//	if (heap[index] == 255) {
+		//		floodfillFromPos(i, bound, 0);
+		//		color_index++;
+		//		if (color_index == 254) return;
+		//	}
+		//}
 		
 		//todo: convert a supposedly better version: http://www.adammil.net/blog/v126_A_More_Efficient_Flood_Fill.html
 		
@@ -571,7 +754,7 @@ function drawCanvas() {
 			}
 		}
 		
-	}
+	}*/
 	
 	function drawThis() {
 		let d2 = new Date();
@@ -585,9 +768,11 @@ function drawCanvas() {
 	}
 	
 	(loop = function() {
-		requestAnimationFrame(loop);
-		//drawQuadOnScreen(texture0.texture);
-		drawThis();
+		if (loop != undefined) {
+			requestAnimationFrame(loop);
+			//drawQuadOnScreen(texture0.texture);
+			drawThis();
+		}
 	})();
 
 }

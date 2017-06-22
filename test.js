@@ -136,6 +136,8 @@ var maxlines = 200;
 var maxactivelines = 20;
 
 var lines = [];
+var intersects = [];
+
 /*
 lines[0] = [];
 lines[0][0] = { 'x': 300.0, 'y': 400.0, 'direction': Math.PI*0.33, 'curve': Math.PI*0.05, 'step': 6.0, 'visible': true };
@@ -177,6 +179,11 @@ lines[lines.length-1][1] = { 'x': w, 'y': h, 'direction': 0, 'curve': 0, 'step':
 lines[lines.length] = [];
 lines[lines.length-1][0] = { 'x': 0.0, 'y': h, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
 lines[lines.length-1][1] = { 'x': w, 'y': h, 'direction': 0, 'curve': 0, 'step': 0.0, 'visible': true };
+
+intersects.push({'line1': 0, 'segment1': 0, 'line2': 1, 'segment2': 0});
+intersects.push({'line1': 0, 'segment1': 1, 'line2': 2, 'segment2': 0});
+intersects.push({'line1': 1, 'segment1': 1, 'line2': 3, 'segment2': 0});
+intersects.push({'line1': 2, 'segment1': 1, 'line2': 3, 'segment2': 1});
 
 var nlines = 12;
 var ang = (Math.PI*2) / 12.0;
@@ -220,8 +227,6 @@ function increaseColors() {
 
 var floodfills = 0;
 var floodfills_per_lines_ratio = 50;
-
-var intersects = [];
 
 let loop = undefined;
 
@@ -386,7 +391,7 @@ function drawCanvas() {
 			
 		}
 	
-		console.log(lines);
+		//console.log(lines);
 		//TODO: optimize this to count globally and not recount per frame
 		let countgrownlines = 0;
 		for (var i=0; i< lines.length; i++) {
@@ -427,12 +432,13 @@ function drawCanvas() {
 					polygon_indexes[polygon_indexes.length] = next;
 					if (polygon_indexes[0] == next) done = true;
 				}
+				if (polygon_indexes.length > 10) done = true;
 			}
 			console.log('done trying');
-			console.log(polygon);
+			console.log(polygon_indexes);
 			
-			//loop = undefined;
-			//return;
+			loop = undefined;
+			return;
 			
 			//TODO: retest this
 			
@@ -457,17 +463,21 @@ function drawCanvas() {
 	
 	function findNextIntersect(polygon) {
 		
+		console.log('polygon:');
+		console.log(polygon);
+		
 		let first, previous, latest, best;
 		
 		latest = polygon[polygon.length-1];
 		if (!latest) return false;
 		if (intersects[latest] == undefined) return false;
 		
-		var options = getTravelOptions(latest);
+		var options = getTravelOptions(intersects[latest]);
 		if (options.length == 0) return false;
 		
 		if (polygon.length == 1) {
 			
+			console.log('first step');
 			best = options[rand(options.length)];	
 			
 		} else {
@@ -483,15 +493,19 @@ function drawCanvas() {
 			
 			let best_value = undefined;
 			let best_index = undefined;
+			
 			for (let i=0; i<options.length; i++) {
+				
+				console.log('testing option ' + i + ': ' + options[i]);
+				console.log('previous: ' + previous);
 				
 				// prevent backtracking
 				if (options[i] == previous) continue;
 				
-				let l1 = intersections[options[i]]['line1'];
-				let s1 = intersections[options[i]]['segment1'];
-				let lf = intersections[first]['line1'];
-				let sf = intersections[first]['segment1'];
+				let l1 = intersects[options[i]]['line1'];
+				let s1 = intersects[options[i]]['segment1'];
+				let lf = intersects[first]['line1'];
+				let sf = intersects[first]['segment1'];
 				
 				// stay closest possible to point of origin
 				if (best == undefined) {
@@ -504,17 +518,14 @@ function drawCanvas() {
 						best_index = i;
 					}
 				}
+	
 			}
 			
-			best = best_index;
+			best = options[best_index];
 
 		}
 		
-		//TODO: test which one is faster, don't think it really costs much CPU eitherway, could also not use sqrt, don't need _exact_ distance, just a comparative measurement
-		function calcDistance(x1,y1,x2,y2) {
-			//return Math.hypot(x2-x1, y2-y1);
-			return Math.sqrt( Math.pow((x1-x2), 2) + Math.pow((y1-y2), 2) );
-		}
+		
 		
 		
 		//TODO: walk in direction of segment until next intersection
@@ -554,47 +565,70 @@ function drawCanvas() {
 		return best;
 	}
 	
+	//TODO: test which one is faster, don't think it really costs much CPU eitherway, could also not use sqrt, don't need _exact_ distance, just a comparative measurement
+	function calcDistance(x1,y1,x2,y2) {
+		//return Math.hypot(x2-x1, y2-y1);
+		return Math.sqrt( Math.pow((x1-x2), 2) + Math.pow((y1-y2), 2) );
+	}
+	
 	function getTravelOptions(inter) {
 		
 		let options = [];
-		
-		if (('line1' in inter) && ('segment1' in inter)) {
+		console.log('intersection object:');
+		console.log(inter);
+		if ((inter['line1'] != undefined) && (inter['segment1'] != undefined)) {
 			let line = lines[inter['line1']];
 			if (line != undefined) {
 				let segm = inter['segment1'];
-				if (line[segm]) != undefined) {
+				if (line[segm] != undefined) {
 					// check going up
 					if (line[segm+1] != undefined) {
 						if (line[segm+1]['visible'] == true) {
 							options[options.length] = findNextIntersectInLine(inter['line1'], segm);
+						} else {
+							console.log( (segm+1) + ' is invisible');
 						}
+					} else {
+						console.log( (segm+1) + ' is undefined');
 					}
 					// check going down
 					if (line[segm-1] != undefined) {
 						if (line[segm-1]['visible'] == true) {
 							options[options.length] = findPrevIntersectInLine(inter['line1'], segm);
+						} else {
+							console.log( (segm-1) + ' is invisible');
 						}
+					} else {
+						console.log( (segm-1) + ' is undefined');
 					}
 				}
 			}
 		}
 		
-		if (('line2' in inter) && ('segment2' in inter)) {
+		if ((inter['line2'] != undefined) && (inter['segment2'] != undefined)) {
 			let line = lines[inter['line2']];
 			if (line != undefined) {
 				let segm = inter['segment2'];
-				if (line[segm]) != undefined) {
+				if (line[segm] != undefined) {
 					// check going up
 					if (line[segm+1] != undefined) {
 						if (line[segm+1]['visible'] == true) {
-							options[options.length] = findNextIntersectInLine(inter['line1'], segm);
+							options[options.length] = findNextIntersectInLine(inter['line2'], segm);
+						} else {
+							console.log( (segm+1) + ' is invisible');
 						}
+					} else {
+						console.log( (segm+1) + ' is undefined');
 					}
 					// check going down
 					if (line[segm-1] != undefined) {
 						if (line[segm-1]['visible'] == true) {
-							options[options.length] = findPrevIntersectInLine(inter['line1'], segm);
+							options[options.length] = findPrevIntersectInLine(inter['line2'], segm);
+						} else {
+							console.log( (segm-1) + ' is invisible');
 						}
+					} else {
+						console.log( (segm-1) + ' is undefined');
 					}
 				}
 			}
@@ -608,6 +642,7 @@ function drawCanvas() {
 	function findNextIntersectInLine(startline, startsegm) {
 		var closest = undefined;
 		var index = undefined;
+		console.log('finding next intersect of ' + startline + ' ' + startsegm);
 		for (let i=0; i<intersects.length; i++) {
 			if ((intersects[i]['line1'] == startline) && (intersects[i]['segment1'] != startsegm) && (intersects[i]['segment1'] > startsegm)) {
 				if (closest == undefined) {
@@ -633,12 +668,14 @@ function drawCanvas() {
 				}
 			}
 		}
+		console.log('found: ' + index);
 		return index;
 	}
 	
 	function findPrevIntersectInLine(startline, startsegm) {
 		var closest = undefined;
 		var index = undefined;
+		console.log('finding prev intersect of ' + startline + ' ' + startsegm);
 		for (let i=0; i<intersects.length; i++) {
 			if ((intersects[i]['line1'] == startline) && (intersects[i]['segment1'] != startsegm) && (intersects[i]['segment1'] < startsegm)) {
 				if (closest == undefined) {
@@ -664,6 +701,7 @@ function drawCanvas() {
 				}
 			}
 		}
+		console.log('found: ' + index);
 		return index;
 	}
 	

@@ -401,7 +401,7 @@ function drawCanvas() {
 		//console.log('lines count: ' + lines.length + ' ffplr: ' + floodfills_per_lines_ratio + ' countgrownlines: ' + countgrownlines);
 		if ((floodfills*floodfills_per_lines_ratio < countgrownlines) && (countgrownlines > floodfills_per_lines_ratio)) {
 			
-			drawLinesOnQuadWithBackground(verts, floodfillBuffer.texture);
+			//drawLinesOnQuadWithBackground(verts, floodfillBuffer.texture);
 			/*
 			//drawLinesOnQuad(verts);
 			
@@ -424,28 +424,86 @@ function drawCanvas() {
 			polygon_indexes[0] = rand(intersects.length);
 			var done = false;
 			while (!done) {
-				console.log('trying something');
+				//console.log('trying something');
 				var next = findNextIntersect(polygon_indexes);
 				if (next == false) {
 					done = true;
 				} else {
+					if (next == undefined) {
+						console.log('reached a dead end by some reason!');
+						done = true;
+						continue;
+					}
 					polygon_indexes[polygon_indexes.length] = next;
 					if (polygon_indexes[0] == next) done = true;
 				}
-				if (polygon_indexes.length > 10) done = true;
+				if (polygon_indexes.length > 12) done = true;
 			}
-			console.log('done trying');
+			console.log('got polygon');
 			console.log(polygon_indexes);
 			
-			loop = undefined;
-			return;
+			//loop = undefined;
+			//return;
 			
-			//TODO: retest this
-			
-			//TODO: draw it on top of the existing floodfillbuffer with a different floodfills index
+			//draw it on top of the existing floodfillbuffer with different floodfills index
 
+			//TODO: debug why intersection points aren't being drawn on correct place
+			//TODO: needs to include all verts of the line between each intersection points
+			let pverts = [];
+			//let xadd = 0.0;
+			//let yadd = 0.0;
+			for (let j=0; j<polygon_indexes.length-1; j++) {
+				
+				let l1 = intersects[polygon_indexes[j]]['line1'];
+				let s1 = intersects[polygon_indexes[j]]['segment1'];
+				let l2 = intersects[polygon_indexes[j]]['line2'];
+				let s2 = intersects[polygon_indexes[j]]['segment2'];
+				
+				let pl1 = intersects[polygon_indexes[j+1]]['line1'];
+				let ps1 = intersects[polygon_indexes[j+1]]['segment1'];
+				let pl2 = intersects[polygon_indexes[j+1]]['line2'];
+				let ps2 = intersects[polygon_indexes[j+1]]['segment2'];
+				
+				let dump = figureOutDirection(l1,s1,l2,s2,pl1,ps1,pl2,ps2);
+				
+				let dpos = dump['start'];
+				while (dpos != dump['end']) {
+					
+					if  (lines[dump['line']][dpos] == undefined) {
+						console.log('WTF!');
+						console.log(dump);
+						console.log(lines);
+						
+						setTimeout(function() { loop = undefined }, 100);
+						return;
+					}
+					let x = lines[dump['line']][dpos]['x']/w-0.5;
+					let y = lines[dump['line']][dpos]['y']/h-0.5;
+					pverts[pverts.length] = x;
+					pverts[pverts.length] = y;
+					pverts[pverts.length] = 0.0;
+					pverts[pverts.length] = 1.0;
+				
+					dpos += dump['step'];
+				}
+				
+			}
+			
+			// first point is center of polygon (the center of the TRIANGLE_FAN)
+			//pverts[0] = xadd/polygon_indexes.length;
+			//pverts[1] = yadd/polygon_indexes.length;
+			
+			console.log('trying to draw');
+			console.log(pverts);
+			
+			drawPolygonOnQuadWithBackground(pverts, floodfillBuffer.texture, floodfills);
 			
 			floodfills++;
+			
+			drawQuadOnScreen(floodfillBuffer.texture, myBuffer.texture);
+			setTimeout(function() { loop = undefined }, 100);
+//			loop = undefined;
+			return;
 			
 			//drawQuadOnScreen(myBuffer.texture, floodfillBuffer.texture);
 			
@@ -457,7 +515,7 @@ function drawCanvas() {
 		}
 		
 		//drawLinesOnQuad(verts);
-		drawQuadOnScreen(floodfillBuffer.texture,myBuffer.texture);
+		drawQuadOnScreen(floodfillBuffer.texture, myBuffer.texture);
 		
 	}
 	
@@ -497,10 +555,16 @@ function drawCanvas() {
 			for (let i=0; i<options.length; i++) {
 				
 				console.log('testing option ' + i + ': ' + options[i]);
-				console.log('previous: ' + previous);
 				
 				// prevent backtracking
-				if (options[i] == previous) continue;
+				if (options[i] == previous) {
+					console.log('previous is also ' + previous + ' :: preventing backtracking');
+					continue;
+				}
+				if (options[i] == undefined) {
+					console.log('undefined options, skipping');
+					continue;
+				}
 				
 				let l1 = intersects[options[i]]['line1'];
 				let s1 = intersects[options[i]]['segment1'];
@@ -508,7 +572,7 @@ function drawCanvas() {
 				let sf = intersects[first]['segment1'];
 				
 				// stay closest possible to point of origin
-				if (best == undefined) {
+				if (best_value == undefined) {
 					best_value = calcDistance( lines[l1][s1]['x'], lines[l1][s1]['y'], lines[lf][sf]['x'], lines[lf][sf]['y'] );
 					best_index = i;
 				} else {
@@ -518,6 +582,8 @@ function drawCanvas() {
 						best_index = i;
 					}
 				}
+				
+				console.log('best so far: ' + best_value + ' from ' + best_index);
 	
 			}
 			
@@ -525,43 +591,6 @@ function drawCanvas() {
 
 		}
 		
-		
-		
-		
-		//TODO: walk in direction of segment until next intersection
-		//TODO: on intersection get list of all possible ways (exclude backtrack, exclude invisible lines), save segment and direction
-		//TODO: calculate absolute distance between the next step in that direction and the absolute starting point of the polygon
-		//TODO: pick the min of the list
-		
-		
-		
-		/*
-		//TODO: change this, it can't be just from same line, they could be from same line and be invisible in between
-		// get list of intersections on same line that are not same as ours
-		let list = [];
-		for (let i=0; i<intersects.length; i++) {
-			if ((intersects[i]['line1'] == startline) && (intersects[i]['segment1'] != startsegm)) {
-				list[list.length] = { 'line': intersects[i]['line1'], 'segment':  intersects[i]['segment1'], 'index': i };
-			} else if ((intersects[i]['line2'] == startline) && (intersects[i]['segment2'] != startsegm)) {
-				list[list.length] = { 'line': intersects[i]['line2'], 'segment':  intersects[i]['segment2'], 'index': i };
-			}
-		}
-		console.log(list);
-		let best = false;
-		for (let j=0; j<list.length; j++) {
-			let segm_dist = Math.abs(list[j]['segment'] - startsegm);
-			if (j == 0) {
-				best = { 'index': list[j]['index'], 'dir': calcDir(startline, startsegm, list[j]['line'], list[j]['segment']), 'segm_dist': segm_dist};
-			} else {
-				//TODO: choose next best intersection segment farther away (to get larger polygon) - choosing closest possible for now, to avoid crossover issues
-				//TODO: look for polygon closure somehow (guess we need to keep reference to starting intersect and look for that line again)
-				//TODO: avoid overcrossing the starting line
-				//TODO: ensure we are always turning right by calculating calcdir from x y coordinates using inter['dir']
-				
-				// closest possible for now, to avoid crossover issues
-				if (segm_dist < best['segm_dist']) best = { 'index': list[j]['index'], 'dir': calcDir(startline, startsegm, list[j]['line'], list[j]['segment']), 'segm_dist': segm_dist };	
-			}
-		}*/
 		return best;
 	}
 	
@@ -586,20 +615,20 @@ function drawCanvas() {
 						if (line[segm+1]['visible'] == true) {
 							options[options.length] = findNextIntersectInLine(inter['line1'], segm);
 						} else {
-							console.log( (segm+1) + ' is invisible');
+							console.log( (segm+1) + ' is invisible, not looking for an intersection');
 						}
 					} else {
-						console.log( (segm+1) + ' is undefined');
+						console.log( (segm+1) + ' is undefined, can\'t look it up');
 					}
 					// check going down
 					if (line[segm-1] != undefined) {
 						if (line[segm-1]['visible'] == true) {
 							options[options.length] = findPrevIntersectInLine(inter['line1'], segm);
 						} else {
-							console.log( (segm-1) + ' is invisible');
+							console.log( (segm-1) + ' is invisible, not looking for an intersection');
 						}
 					} else {
-						console.log( (segm-1) + ' is undefined');
+						console.log( (segm-1) + ' is undefined, can\'t look it up');
 					}
 				}
 			}
@@ -615,20 +644,20 @@ function drawCanvas() {
 						if (line[segm+1]['visible'] == true) {
 							options[options.length] = findNextIntersectInLine(inter['line2'], segm);
 						} else {
-							console.log( (segm+1) + ' is invisible');
+							console.log( (segm+1) + ' is invisible, not looking for an intersection');
 						}
 					} else {
-						console.log( (segm+1) + ' is undefined');
+						console.log( (segm+1) + ' is undefined, can\'t look it up');
 					}
 					// check going down
 					if (line[segm-1] != undefined) {
 						if (line[segm-1]['visible'] == true) {
 							options[options.length] = findPrevIntersectInLine(inter['line2'], segm);
 						} else {
-							console.log( (segm-1) + ' is invisible');
+							console.log( (segm-1) + ' is invisible, not looking for an intersection');
 						}
 					} else {
-						console.log( (segm-1) + ' is undefined');
+						console.log( (segm-1) + ' is undefined, can\'t look it up');
 					}
 				}
 			}
@@ -705,95 +734,36 @@ function drawCanvas() {
 		return index;
 	}
 	
-	/*function calcDir(l1, s1, l2, s2) {
-		
-		//TODO: test if this dot product is correctly calculated and giving expected direction information (always turn clockwise)
-		
-		console.log( l1 + ' ' + s1 + ' ' + l2 + ' ' + s2);
-		console.log(lines);
-		
-		let u1 = lines[l1][s1-1] || lines[l1][s1];
-		let u2 = lines[l1][s1+1] || lines[l1][s1];
-		
-		let v1 = lines[l2][s2-1] || lines[l2][s2];
-		let v2 = lines[l2][s2+1] || lines[l2][s2];
-		
-		let dp = (u1['x'] - u2['x']) * (v1['x'] - v2['x']) + (u1['y'] - u2['y']) * (v1['y'] - v2['y']);
-		console.log(dp);
-
-		return (dp>0)?1:0;
-	}*/
-	
-	/*function doFloodFill(stdlib, foreign, heap) {
-		'use asm';
-		var w = foreign.w | 0,
-			h = foreign.h | 0,
-			bound = foreign.bound | 0,
-			i = 0;
-		
-		var color_index = 1;
-
-		//todo: repeat n max times until we get a non white pixel to floodfill
-		
-		var pos = (stdlib.Math.random()*w*0.75 + w*0.25 + w*(stdlib.Math.random()*0.5*h + 0.25*h)) | 0;
-		
-		floodfillFromPos(pos, bound);
-
-		//color_index++;
-		
-		//floodfillFromPos(1000000, bound);
-		
-		//for (i = 0; i < w*h; i++) {
-		//	var index = (i * 4) | 0;
-		//	if (heap[index] == 255) {
-		//		floodfillFromPos(i, bound, 0);
-		//		color_index++;
-		//		if (color_index == 254) return;
-		//	}
-		//}
-		
-		//todo: convert a supposedly better version: http://www.adammil.net/blog/v126_A_More_Efficient_Flood_Fill.html
-		
-		function floodfillFromPos(pos, stopper) {
-			var pos=pos|0;
-			var stopper=stopper|0;
-			//if (level > 5) return;
-			if (heap[pos] != stopper) {
-				floodfillLine(pos, stopper);
-				if (pos+w < w*h) {
-					floodfillFromPos((pos+w)|0, stopper|0);
-				}
-			}			
+	function figureOutDirection(l1,s1,l2,s2,pl1,ps1,pl2,ps2) {
+		let obj = { 'start': 0,
+					'end': 0,
+					'line': 0,
+					'step': 0 };
+					
+		if (l1 == pl1) {
+			obj['line'] = l1;
+			obj['start'] = s1;
+			obj['end'] = ps1;
+		} else if (l1 == pl2) {
+			obj['line'] = l1;
+			obj['start'] = s1;
+			obj['end'] = ps2;
+		} else if (l2 == pl1) {
+			obj['line'] = l2;
+			obj['start'] = s2;
+			obj['end'] = ps1;
+		} else if (l2 == pl2) {
+			obj['line'] = l2;
+			obj['start'] = s2;
+			obj['end'] = ps2;
 		}
-		
-		function floodfillLine(pos, stopper) {
-			var j = 0, index = 0;
-			var pos=pos|0;
-			var stopper=stopper|0;
-			var min = (stdlib.Math.floor(pos/w) * w)|0;
-			//console.log('min:' + min);
-			for (j = pos; j > min; j--) {
-				index = (j * 4) | 0;
-				if (heap[index] != stopper) {
-					heap[index] = color_index;
-				} else {
-					break;
-				} 
-			}
-			var max = (stdlib.Math.ceil(pos/w) * w)|0;
-			//console.log('max:' + max);
-			for (j = pos; j < max; j++) {
-				index = (j * 4) | 0;
-				if (heap[index] != stopper) {
-					heap[index] = color_index;
-				} else {
-					return j|0;
-				} 
-			}
-		}
-		
-	}*/
-	
+				
+		if (obj['start'] < obj['end']) obj['step'] = 1;
+		 else obj['step'] = -1;
+		 
+		 return obj;
+	}
+
 	function drawThis() {
 		let d2 = new Date();
 		let n2 = d2.getTime();
@@ -970,6 +940,72 @@ function drawLinesOnQuadWithBackground(vertices, texture) {
 	gl.uniform1i(textureLocation, 0);
 	
 	gl.drawArrays(gl.LINES, 0, vertices.length/vert_div);
+	
+	//gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	
+	/*gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+    gl.generateMipmap(gl.TEXTURE_2D);*/
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+}
+
+
+function drawPolygonOnQuadWithBackground(vertices, texture, colorindex) {
+	
+	//draw bg texture
+	/*gl.bindTexture(gl.TEXTURE_2D, texture);
+	
+	var vertices = quadVerts;
+	gl.useProgram(shaderProgramQuad);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, floodfillBuffer.buffer);
+	
+	gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+	
+    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+    gl.enableVertexAttribArray(texcoordLocation);
+    gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+	gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);	
+	gl.uniform2f(resolutionLocation2, gl.canvas.width, gl.canvas.height);	
+	gl.uniform1i(textureLocation1, 0);
+	gl.uniform1i(textureLocation2, 0);
+	
+	gl.drawArrays(gl.TRIANGLES, 0, 6);
+	
+	gl.bindBuffer(gl.ARRAY_BUFFER, null);
+	gl.bindTexture(gl.TEXTURE_2D, null);*/
+
+	
+	// draw lines
+	var vert_div = 4;
+	
+	gl.useProgram(shaderProgramLines);
+	//gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	//gl.activeTexture(gl.TEXTURE0);
+	//gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+	
+	gl.enableVertexAttribArray(sVerts);
+	
+	var vb_verts = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, vb_verts);
+  	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+	gl.vertexAttribPointer(sVerts, vert_div, gl.FLOAT, false, 0, 0);
+
+	//gl.bindFramebuffer(gl.FRAMEBUFFER, myBuffer.buffer);
+    //gl.activeTexture(gl.TEXTURE0);
+	//gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, floodfillBuffer.buffer);
+	//gl.activeTexture(gl.TEXTURE0);
+	//gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
+	
+	gl.uniform1i(textureLocation, 0);
+	
+	gl.drawArrays(gl.TRIANGLE_FAN, 0, vertices.length/vert_div);
 	
 	//gl.bindTexture(gl.TEXTURE_2D, myBuffer.texture);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
